@@ -241,28 +241,18 @@ static void wayland_add_device_modes(const struct gdi_device_manager *device_man
                                      void *param, struct output_info *output_info,
                                      struct output_info *primary)
 {
-    DEVMODEW *modes, current = {.dmSize = sizeof(current)};
-    struct wayland_output_mode *output_mode;
-    int modes_count = 0;
-
-    if (!(modes = malloc(output_info->output->modes_count * sizeof(*modes))))
-        return;
+    DEVMODEW current = {.dmSize = sizeof(current)};
 
     populate_devmode(output_info->output->current_mode, &current);
     current.dmFields |= DM_POSITION;
     current.dmPosition.x = output_info->x - primary->x;
     current.dmPosition.y = output_info->y - primary->y;
 
-    RB_FOR_EACH_ENTRY(output_mode, &output_info->output->modes,
-                      struct wayland_output_mode, entry)
-    {
-        DEVMODEW mode = {.dmSize = sizeof(mode)};
-        populate_devmode(output_mode, &mode);
-        modes[modes_count++] = mode;
-    }
-
-    device_manager->add_modes(&current, modes_count, modes, param);
-    free(modes);
+    /* wl_output advertises modes but provides no way to select them. Expose
+     * only the current host mode so win32u keeps emulating display changes.
+     * In particular, accumulating an old refresh rate after an output update
+     * must not make win32u discard an application's current virtual mode. */
+    device_manager->add_modes(&current, 1, &current, param);
 }
 
 /***********************************************************************
