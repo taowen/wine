@@ -1493,6 +1493,10 @@ volatile void *alloc_shared_object( mem_size_t shm_size )
     struct session_object *object;
     mem_size_t size = sizeof(*object) - sizeof(object_shm_t) + max(shm_size, sizeof(object_shm_t));
 
+    /* Variable-sized class/window extra bytes must not misalign the next
+     * object's 64-bit sequence counter used by SHARED_WRITE_BEGIN. */
+    size = round_size( size, __alignof__(struct session_object) - 1 );
+
     if ((object = find_free_session_object( size )))
         list_remove( &object->entry );
     else
