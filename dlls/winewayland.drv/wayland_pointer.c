@@ -1019,7 +1019,17 @@ BOOL WAYLAND_ClipCursor(const RECT *clip, BOOL reset)
 
     TRACE("clip=%s reset=%d\n", wine_dbgstr_rect(clip), reset);
 
-    NtUserGetCursorPos(&cursor_pos);
+    /* Window rectangles and driver cursor coordinates use the raw desktop.
+     * NtUserGetCursorPos maps back to the application's emulated display mode,
+     * which would warp the pointer away from the requested physical position. */
+    SERVER_START_REQ(set_cursor)
+    {
+        req->flags = 0;
+        if (wine_server_call(req)) return FALSE;
+        cursor_pos.x = reply->new_x;
+        cursor_pos.y = reply->new_y;
+    }
+    SERVER_END_REQ;
     hwnd = NtUserGetForegroundWindow();
 
     if (!(data = wayland_win_data_get(hwnd))) return FALSE;
