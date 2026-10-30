@@ -7,5 +7,5 @@
   "product": "wine",
   "compilerCacheMiB": 2048,
   "release": "arlinux-wine-vulkan-debug",
-  "products": []
+  "products": ["hybris-diagnostics"]
 }

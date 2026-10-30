@@ -335,7 +335,7 @@ def fetch_product(reference, output):
             raise ValueError('Product identity mismatch')
         if reuse_product(output, reference):
             return
-        if record.get('artifacts'):
+        if record.get('artifacts') or record.get('diagnostics'):
             # Device testing needs only the runtime. Source archives are fetched
             # by the publisher on demand, using the same verified component record.
             output.mkdir(parents=True, exist_ok=True)
@@ -354,9 +354,14 @@ def fetch_product(reference, output):
                 return name, item['sha256']
             # Each producer is ready independently; no product selection is
             # generated and no other producer blocks device deployment.
-            manifest = record['runtimeManifest']
-            name, checksum = fetch_artifact(dict(manifest, name=manifest['file']))
-            files[name] = checksum
+            if record.get('diagnostics'):
+                for item in record['diagnostics']:
+                    name, checksum = fetch_artifact(item)
+                    files[name] = checksum
+            else:
+                manifest = record['runtimeManifest']
+                name, checksum = fetch_artifact(dict(manifest, name=manifest['file']))
+                files[name] = checksum
             (output/'github-component.json').write_text(json.dumps(record, indent=2)+'\n')
             files['github-component.json'] = sha256_file(output/'github-component.json')
             cache_receipt.write_text(json.dumps(dict(format=1, reference=reference, files=files), indent=2)+'\n')
@@ -403,7 +408,7 @@ def fetch_product(reference, output):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--framework-ref',default='arlinux')
-    parser.add_argument('--product',choices=('wine','audio','diagnostics','wine-capture','all'),default='all')
+    parser.add_argument('--product',choices=('wine','audio','diagnostics','hybris-diagnostics','wine-capture','all'),default='all')
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--parallel',type=int,default=8)
     parser.add_argument('--component', choices=None, help='Build only this runtime producer and its compiler dependencies')

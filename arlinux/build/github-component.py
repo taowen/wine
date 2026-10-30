@@ -390,6 +390,7 @@ def publish(data, framework):
         record['cacheSeed'] = {key: value for key, value in record['cacheSeed'].items()
                                if key != 'manifestText'}
     paths = []
+    diagnostic_assets = []
     if stage == 'windows-fonts':
         paths = [root/'vendor/fonts']
     else:
@@ -403,6 +404,14 @@ def publish(data, framework):
         paths = [path.parent, path.parent.parent/'receipt.json',
                  *(Path(name) for name in state['references'])]
         record['pipelineOutput'] = path.relative_to(root).as_posix()
+        if stage == 'wine-vulkan':
+            diagnostic_assets = [path/'diagnostics/libhybris-diagnostics.apk',
+                                 path/'diagnostics/libhybris-diagnostics.json']
+            tag = load_plan(framework/'arlinux/build')['stages'][stage]['release']
+            repository = os.environ['GITHUB_REPOSITORY']
+            record['diagnostics'] = [dict(name=file.name, sha256=sha(file), bytes=file.stat().st_size,
+                url=f'https://github.com/{repository}/releases/download/{tag}/{file.name}')
+                for file in diagnostic_assets]
         if stage in ('wine-diagnostics', 'wine-capture'):
             # Consumers need distributable archives, not the native compiler work tree.
             final = framework/('build/artifacts/'+('diagnostics' if stage == 'wine-diagnostics' else 'wine-capture' if stage == 'wine-capture' else 'wine'))
@@ -508,7 +517,7 @@ def publish(data, framework):
         assets = {asset['name']:asset for asset in json.loads(existing.stdout)['assets']}
     # Payload names contain their archive digest so an in-flight reader cannot
     # mix generations. Replace the completion marker only after all uploads.
-    for file in [*(output/part['name'] for part in record['parts']), manifest]:
+    for file in [*(output/part['name'] for part in record['parts']), *diagnostic_assets, manifest]:
         if file.name in assets:
             if assets[file.name].get('digest') != 'sha256:'+sha(file):
                 run('gh','release','upload',tag,'--repo',repository,file,'--clobber')
