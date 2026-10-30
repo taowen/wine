@@ -139,6 +139,10 @@ def prepare(data, framework):
     with Path(os.environ['GITHUB_ENV']).open('a') as out:
         out.write('ARLINUX_FRAMEWORK='+framework.as_posix()+'\n')
         out.write('ARLINUX_WORKSPACE='+root.as_posix()+'\n')
+        if platform.system() == 'Linux':
+            # GNU tar otherwise applies the runner umask to cached file modes.
+            # Output receipts include those modes, so preserve them on restore.
+            out.write('TAR_OPTIONS=--same-permissions\n')
     if data['stage'] != 'windows-fonts':
         paths = [str(root/'cache/ccache')]
         # Complete compiler trees travel in verified capsules; Actions caches
@@ -356,6 +360,8 @@ def build_wine_diagnostics(data, framework):
 
 
 def build(data, framework):
+    # The tar option belongs to Actions cache restore/save, not compiler recipes.
+    os.environ.pop('TAR_OPTIONS', None)
     root = Path(os.environ['ARLINUX_WORKSPACE'])
     stage = data['stage']
     if stage in ('windows-fonts', 'wine-capture', 'wine-diagnostics'):
