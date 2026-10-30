@@ -1,4 +1,9 @@
 {
+  "vulkanHeaders": {
+    "file": "Vulkan-Headers-1.4.357.tar.gz",
+    "url": "https://codeload.github.com/KhronosGroup/Vulkan-Headers/tar.gz/refs/tags/v1.4.357",
+    "sha256": "7dc0dbcf1d49dd3d7da3761c251c6097dfbaac475321a4a8a99269d3d5abecdc"
+  },
   "mingw": {
     "file": "llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz",
     "url": "https://github.com/mstorsjo/llvm-mingw/releases/download/20260826/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz",

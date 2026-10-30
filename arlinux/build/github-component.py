@@ -108,6 +108,10 @@ def prepare(data, framework):
             packages = ['build-essential', 'bison', 'flex', 'ccache', 'gettext', 'libfreetype-dev',
                         'cmake', 'ninja-build', 'pkg-config', 'git', 'curl', 'unzip',
                         'python3', 'python3-venv', 'python3-pip', 'zstd']
+        if data['stage'] == 'wine-vulkan':
+            packages = ['build-essential', 'ccache', 'cmake', 'ninja-build', 'pkg-config',
+                        'git', 'curl', 'unzip', 'patch', 'python3', 'python3-venv',
+                        'python3-pip', 'zstd', 'libfreetype-dev', 'libwayland-bin']
         run('sudo', 'apt-get', 'update')
         run('sudo', 'apt-get', 'install', '-y', '--no-install-recommends', *packages,
             env=dict(os.environ, DEBIAN_FRONTEND='noninteractive'))
@@ -214,7 +218,8 @@ def toolchains(root, framework):
         run('ccache', '--max-size', str(plan['stages'][stage]['compilerCacheMiB'])+'M',
             env=dict(os.environ,CCACHE_DIR=str(root/'cache/ccache')))
     return dict(format=1, framework=str(framework), wineSource=str(framework),
-        ndk=str(tools/'ndk'), mingw=str(launcher), addons=str(addons))
+        ndk=str(tools/'ndk'), mingw=str(launcher), addons=str(addons),
+        vulkanHeaders=str(tools/'vulkanHeaders'))
 
 
 def import_dependency(root, dependency, visited=None, *, recursive=True):
@@ -378,6 +383,16 @@ def publish_distribution(data, record, final):
     publish_product(data, record, final)
 
 
+def diagnostic_artifacts(framework, record, path):
+    files = [path/'diagnostics/libhybris-diagnostics.apk',
+             path/'diagnostics/libhybris-diagnostics.json']
+    tag = load_plan(framework/'arlinux/build')['stages']['wine-vulkan']['release']
+    repository = os.environ['GITHUB_REPOSITORY']
+    record['diagnostics'] = [dict(name=file.name, sha256=sha(file), bytes=file.stat().st_size,
+        url=f'https://github.com/{repository}/releases/download/{tag}/{file.name}') for file in files]
+    return files
+
+
 def publish(data, framework):
     root = Path(os.environ['ARLINUX_WORKSPACE'])
     stage = data['stage']
@@ -405,13 +420,7 @@ def publish(data, framework):
                  *(Path(name) for name in state['references'])]
         record['pipelineOutput'] = path.relative_to(root).as_posix()
         if stage == 'wine-vulkan':
-            diagnostic_assets = [path/'diagnostics/libhybris-diagnostics.apk',
-                                 path/'diagnostics/libhybris-diagnostics.json']
-            tag = load_plan(framework/'arlinux/build')['stages'][stage]['release']
-            repository = os.environ['GITHUB_REPOSITORY']
-            record['diagnostics'] = [dict(name=file.name, sha256=sha(file), bytes=file.stat().st_size,
-                url=f'https://github.com/{repository}/releases/download/{tag}/{file.name}')
-                for file in diagnostic_assets]
+            diagnostic_assets = diagnostic_artifacts(framework, record, path)
         if stage in ('wine-diagnostics', 'wine-capture'):
             # Consumers need distributable archives, not the native compiler work tree.
             final = framework/('build/artifacts/'+('diagnostics' if stage == 'wine-diagnostics' else 'wine-capture' if stage == 'wine-capture' else 'wine'))

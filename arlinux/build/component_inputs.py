@@ -36,7 +36,7 @@ RESOURCES = {name: ('mingw',) for name in SOURCES}
 for name in ('bionic-deps', 'bionic-x11', 'wine-pulse', 'wine-tls', 'wine-graphics', 'wine-vulkan'):
     RESOURCES[name] = ('ndk',)
 RESOURCES.update({'wine-addons': ('addons',), 'wine-bionic-compile': ('mingw', 'ndk'), 'wine-bionic': ('ndk',),
-                  'wine-capture': ('ndk',), 'windows-fonts': ()})
+                  'wine-capture': ('ndk',), 'windows-fonts': (), 'wine-vulkan': ('ndk', 'vulkanHeaders')})
 SHARED = ('arlinux/build/github-component.py',
           'arlinux/build/wine-pipeline.py', 'arlinux/build/pipeline_cache.py',
           'arlinux/build/wine_graph.py', 'arlinux/build.sh')
@@ -90,6 +90,10 @@ def source_inputs(repo, revision, stage, plan):
     def source(path):
         return subprocess.check_output(['git', '-C', str(repo), 'show', revision+':'+path]).decode()
     selected['arlinux/build/component_inputs.py'] = implementation(source('arlinux/build/component_inputs.py'))
+    if stage == 'bionic-deps':
+        # Vulkan/Mesa/PE recipes do not participate in the base SDK compiler.
+        path = 'arlinux/build/wine-pipeline.py'
+        selected[path] = implementation(source(path), ('build_bionic_deps', 'main'))
     publication = {}
     runtime_publisher = 'arlinux/build/runtime_distribution.py'
     if runtime_publisher in paths and plan['stages'][stage].get('execution') != 'local':
@@ -114,7 +118,8 @@ def source_inputs(repo, revision, stage, plan):
     lock = subprocess.check_output(['git', '-C', str(repo), 'show', revision+':arlinux/build/github-inputs.json'])
     versions = json.loads(lock)
     recipe = dict(selected)
-    publisher = implementation(source(adapter), ('publish', 'publish_distribution'))
+    publisher = implementation(source(adapter), ('publish', 'publish_distribution',
+        *(('diagnostic_artifacts',) if stage == 'wine-vulkan' else ())))
     if publication:
         publisher = hashlib.sha256(json.dumps(dict(adapter=publisher, sources=publication), sort_keys=True).encode()).hexdigest()
     return dict(sourceSha256=hashlib.sha256(json.dumps(selected, sort_keys=True).encode()).hexdigest(),

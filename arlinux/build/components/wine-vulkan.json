@@ -2,7 +2,7 @@
   "repository": "taowen/libhybris",
   "runner": "ubuntu-24.04",
   "dependencies": [
-    "wine-graphics"
+    "bionic-deps"
   ],
   "product": "wine",
   "compilerCacheMiB": 2048,

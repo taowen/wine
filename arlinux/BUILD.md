@@ -73,6 +73,11 @@ receipts and source archives remain reproducible. Compiler dependencies are
 built only when required by the requested producer; building `wine-bionic`
 does not wait for Steamworks or the x86 PE producers.
 
+`wine-vulkan` depends on the base Bionic SDK and a hash-locked Vulkan-Headers
+archive, not on Mesa compilation. Its standalone `hybris-diagnostics` APK can
+therefore build without Mesa; a full Wine build schedules the Vulkan adapter
+and Mesa independently after their shared SDK is ready.
+
 The phone caches each producer's extracted files independently. Updating one
 producer downloads and extracts only its changed archives. Immutable launch
 views retain real files from the native producer for Wine's realpath-based data

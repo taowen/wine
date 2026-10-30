@@ -83,7 +83,7 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
     adapter = stage('wine-vulkan', lambda out: invoke('python3', 'arlinux/components/libhybris/arlinux/build-bionic-vulkan.py',
                     '--framework', framework, '--source', framework / 'arlinux/components/libhybris', '--headers', framework / 'arlinux/components/android-headers',
                     '--ndk', paths['ndk'], '--native-prefix', paths['bionicPrefix'],
-                    '--graphics-prefix', graphics / 'prefix', '--output', out), ('wine-graphics',))
+                    '--vulkan-headers', paths['vulkanHeaders'] / 'include', '--output', out), ('bionic-deps',))
     if cache.selected('wine-bionic-compile'):
         env.update(BIONIC_TLS_PREFIX=str(tls / 'prefix'), BIONIC_PULSE_PREFIX=str(pulse / 'work/prefix'),
                    BIONIC_GRAPHICS_PREFIX=str(graphics / 'prefix'), BIONIC_OPENGL='zink')
@@ -128,7 +128,7 @@ def main():
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
     framework = Path(config['framework']).resolve(strict=True)
-    paths = {name: Path(config[name]).resolve() for name in ('wineSource', 'mingw', 'ndk', 'addons')}
+    paths = {name: Path(config[name]).resolve() for name in ('wineSource', 'mingw', 'ndk', 'addons', 'vulkanHeaders')}
     android = framework
     dirty = subprocess.check_output(['git', '-C', str(paths['wineSource']), 'status', '--porcelain', '--untracked-files=normal'])
     if dirty:
@@ -144,7 +144,7 @@ def main():
         env = {name: value for name, value in os.environ.items() if name in (
             'PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
             'http_proxy', 'https_proxy', 'no_proxy', 'ARLINUX_WINDOWS_FONTS',
-            'JOBS', 'CCACHE_DIR', 'CCACHE_BASEDIR')}
+            'JOBS', 'CCACHE_DIR', 'CCACHE_BASEDIR', 'ANDROID_HOME', 'JAVA_HOME')}
         env.update(ANDROID_NDK_HOME=str(paths['ndk']), BIONIC_VULKAN_DRIVER='system', BIONIC_OPENGL='zink')
         if 'bionicPrefix' in paths:
             env['BIONIC_INCLUDE'] = str(paths['bionicPrefix'] / 'include')
