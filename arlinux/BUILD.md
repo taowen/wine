@@ -101,9 +101,10 @@ support. The FEX UnixLib keeps its Android stats-file adaptation under
 `__ANDROID__` in the pinned FEX source, preserving POSIX shared memory elsewhere.
 
 FEX is pinned to the taowen/FEX fork commit
-`1ea0b0efdbf4c01981175cdd60515fa24cb507b1`, retaining the ARM64EC
-process-termination fix `b63017afe` removed by Wine integration commit
-`318936f` and applying the same lock lifetime to WoW64 termination.
+`74c391f3f0da1ced939b3842c2b633c8cf00b7ac` on FEX-2610, including the ARM64EC
+and WoW64 process-termination fixes and Android UnixLib stats-file adaptation.
+The Windows DLLs (`fex`) and Bionic UnixLib (`wine-bionic`) must be built and
+validated together when this source pin changes.
 Before terminating peer threads, it drains code invalidation and retains the
 locks across the termination notification. The WoW64 change follows the
 observed .NET service's detach/unmap wait with a stranded invalidation reader;
