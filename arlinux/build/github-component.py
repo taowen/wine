@@ -280,9 +280,14 @@ def restore_seed(root, framework, data, visited):
     if not data.get('cacheSeed'):
         return
     stage_cache = framework/'build/pipeline'/data['stage']
-    if any(stage_cache.glob('*/receipt.json')):
-        print('Keep restored Actions cache before release seed: '+data['stage'], flush=True)
-        return
+    from pipeline_cache import verified_output
+    for receipt in stage_cache.glob('*/receipt.json'):
+        try:
+            verified_output(receipt.parent, json.loads(receipt.read_text()))
+            print('Keep verified Actions cache before release seed: '+data['stage'], flush=True)
+            return
+        except (OSError, ValueError, KeyError) as failure:
+            print('Invalid restored '+data['stage']+': '+str(failure), flush=True)
     # A debug release may have newer dependencies than this prior receipt.
     # Seed only this component; declared current dependencies are imported next.
     import_dependency(root, data['cacheSeed'], visited, recursive=False)

@@ -83,6 +83,34 @@ def build_references(output):
     return references
 
 
+def first_difference(expected, actual, path='output'):
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        for name in sorted(expected.keys() | actual.keys()):
+            location = path + '/' + name
+            if name not in expected:
+                return location + ': unexpected entry'
+            if name not in actual:
+                return location + ': missing entry'
+            if expected[name] != actual[name]:
+                return first_difference(expected[name], actual[name], location)
+    return path + ': recorded=' + repr(expected) + ', current=' + repr(actual)
+
+
+def verified_output(destination, record):
+    generation = record['generation']
+    if (not isinstance(generation, str) or not generation.startswith('generation-')
+            or Path(generation).name != generation):
+        raise ValueError('Unsafe cache generation')
+    output = Path(destination) / generation / 'output'
+    actual = inventory(output)
+    if record['outputs'] != actual:
+        raise ValueError(first_difference(record['outputs'], actual))
+    actual = build_references(output)
+    if record['references'] != actual:
+        raise ValueError(first_difference(record['references'], actual, 'references'))
+    return output
+
+
 class Cache:
     def __init__(self, root, rebuild=False):
         self.root, self.rebuild = Path(root), rebuild
@@ -95,14 +123,13 @@ class Cache:
         if not self.rebuild and receipt.is_file():
             try:
                 record = json.loads(receipt.read_text())
-                output = destination / record['generation'] / 'output'
-                if (record['inputs'] == identity and record['outputs'] == inventory(output)
-                        and record['references'] == build_references(output)):
+                if record['inputs'] == identity:
+                    output = verified_output(destination, record)
                     print('OK cached ' + name, flush=True)
                     self.records[name] = record
                     return output
-            except (OSError, ValueError, KeyError):
-                pass
+            except (OSError, ValueError, KeyError) as failure:
+                print('Invalid cached ' + name + ': ' + str(failure), flush=True)
         destination.parent.mkdir(parents=True, exist_ok=True)
         # Keep successful generations at their original absolute paths. Configure,
         # pkg-config and Wine tools embed build paths, so moving a built tree breaks it.
