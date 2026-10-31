@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build both hardware DXVK profiles through the same compiler/cache recipe.
 set -euo pipefail
-if [[ $# != 2 ]]; then
-    echo 'Usage: dxvk-windows.sh LLVM_MINGW_BIN OUTPUT_DIRECTORY' >&2
+if [[ $# != 3 ]]; then
+    echo 'Usage: dxvk-windows.sh LLVM_MINGW_BIN OUTPUT_DIRECTORY PROFILE' >&2
     exit 2
 fi
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -87,19 +87,8 @@ printf '%s\n' "$revision" > "$output/$variant/source-commit"
 tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu \
     -czf "$output/$variant/source.tar.gz" --exclude=.git -C "$cache" source
 }
-mkdir -p "$output"
-"$compiler/aarch64-w64-mingw32-clang++" -std=c++17 -O2 -static -municode \
-    -Wl,--no-insert-timestamp "$repo/arlinux/windows-graphics.cpp" -ladvapi32 -o "$output/windows-graphics.exe"
-build_variant legacy dxvk-legacy 'dxgi d3d9 d3d10core d3d10 d3d10_1 d3d11'
-build_variant modern dxvk 'dxgi d3d8 d3d9 d3d10core d3d11'
-python3 - "$output" <<'PY'
-from pathlib import Path
-import configparser,sys
-root=Path(sys.argv[1])
-config=configparser.ConfigParser()
-config['runtime']=dict(format='1',profiles='modern,legacy')
-for name,version in (('modern','2.7.1'), ('legacy','1.10.3')):
-    dlls=sorted(path.stem for path in (root/name/'aarch64-windows').glob('*.dll'))
-    config[name]=dict(version=version,directory=('.' if name=='modern' else name),dlls=','.join(dlls))
-with (root/'profiles.ini').open('w') as file: config.write(file)
-PY
+case "$3" in
+  modern) build_variant modern dxvk 'dxgi d3d8 d3d9 d3d10core d3d11' ;;
+  legacy) build_variant legacy dxvk-legacy 'dxgi d3d9 d3d10core d3d10 d3d10_1 d3d11' ;;
+  *) echo 'Unknown DXVK profile' >&2; exit 2 ;;
+esac

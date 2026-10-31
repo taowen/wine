@@ -1,0 +1,9 @@
+WINE REGISTRY Version 2
+
+[Software\\Wine]
+"Version"="win10"
+
+[Control Panel\\Desktop]
+"LogPixels"=dword:00000060
+"FontSmoothing"="2"
+"FontSmoothingType"=dword:00000002

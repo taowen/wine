@@ -19,7 +19,7 @@ def release_base(stage, repository=None):
 LEAF_INDEX = 'arlinux-wine-runtime.json'
 RUNTIME_STAGES = ('wine-bionic', 'steamworks', 'windows-accessibility', 'windows-tray',
                   'wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386',
-                  'fex', 'dxvk', 'windows-fonts', 'wine-addons')
+                  'fex', 'dxvk', 'dxvk-legacy', 'wine-installer', 'windows-fonts', 'wine-addons')
 
 
 def publish_runtime_component(data, framework, record, built, complete=True):
@@ -80,22 +80,30 @@ def publish_runtime_component(data, framework, record, built, complete=True):
                 shutil.copyfile(built/source.name, source)
                 metadata['fexCommit'] = (built/'source-commit').read_text().strip()
                 metadata['originalSources']['fex'] = dict(asset=source.name, sha256=sha(source))
-            elif stage == 'dxvk':
+            elif stage in ('dxvk', 'dxvk-legacy'):
+                profile = 'modern' if stage == 'dxvk' else 'legacy'
+                files = built/profile
                 target = runtime/'files/lib/wine/dxvk'
                 target.mkdir(parents=True)
-                shutil.copyfile(built/'profiles.ini', target/'profiles.ini')
-                helper = runtime/'files/lib/arlinux/windows-graphics.exe'
-                helper.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(built/'windows-graphics.exe', helper)
-                for profile in ('modern', 'legacy'):
-                    destination = target if profile == 'modern' else target/profile
-                    for folder in (built/profile).glob('*-windows'):
-                        shutil.copytree(folder, destination/folder.name)
-                    name = 'dxvk' if profile == 'modern' else 'dxvk-legacy'
-                    source = output/(name+'-source.tar.gz')
-                    shutil.copyfile(built/profile/'source.tar.gz', source)
-                    metadata['dxvkCommit' if profile == 'modern' else 'dxvkLegacyCommit'] = (built/profile/'source-commit').read_text().strip()
-                    metadata['originalSources'][name] = dict(asset=source.name, sha256=sha(source))
+                for folder in files.glob('*-windows'):
+                    shutil.copytree(folder, target/folder.name)
+                source = output/(stage+'-source.tar.gz')
+                shutil.copyfile(files/'source.tar.gz', source)
+                metadata['dxvkCommit'] = (files/'source-commit').read_text().strip()
+                metadata['dxvkVersion'] = '2.7.1' if stage == 'dxvk' else '1.10.3'
+                metadata['originalSources'][stage] = dict(asset=source.name, sha256=sha(source))
+            elif stage == 'wine-installer':
+                shutil.copytree(built/'files', runtime/'files')
+                source = output/'wine-installer-source.tar.gz'
+                shutil.copyfile(built/source.name, source)
+                metadata['originalSources'][stage] = dict(asset=source.name, sha256=sha(source))
+                metadata['installerProtocol'] = 1
+                metadata['environment'] = {'WINEDLLOVERRIDES': 'msvcp140_2=n,b;winemenubuilder.exe='}
+                metadata['environmentPaths'] = {'DXVK_CONFIG_FILE': 'files/etc/dxvk.conf',
+                                                'FEX_APP_CONFIG_LOCATION': 'files/share/fex-emu/'}
+                metadata['initialization'] = dict(executable='files/lib/arlinux/wine-setup.exe',
+                    template='files/share/arlinux/wine-installer/prefix',
+                    environment={'WINEDLLOVERRIDES': 'mscoree=b;mshtml=b;appwiz.cpl=;winemenubuilder.exe='})
             elif stage == 'windows-fonts':
                 import sys
                 sys.path.insert(0, str(framework/'arlinux'))
@@ -128,7 +136,7 @@ def publish_runtime_component(data, framework, record, built, complete=True):
                         raise RuntimeError('Cannot archive the pinned Windows integration sources')
                 metadata['support'] = dict(protocol=1, directory='files/lib/arlinux')
                 metadata['originalSources'][stage] = dict(asset=source.name, sha256=sha(source))
-            if stage.startswith('wine-pe-') or stage in ('fex', 'dxvk'):
+            if stage.startswith('wine-pe-') or stage in ('fex', 'dxvk', 'dxvk-legacy', 'wine-installer'):
                 from importlib.util import spec_from_file_location, module_from_spec
                 spec = spec_from_file_location('wine_pe_debug', framework/'arlinux/wine_pe_debug.py')
                 optimizer = module_from_spec(spec)

@@ -14,7 +14,9 @@ SOURCES = {
     **{'wine-pe-'+arch: ('@wine', *PE, 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py') for arch in ('aarch64', 'x86_64', 'i386')},
     'wine-pe': (),
     'fex': ('arlinux/build/fex-windows.sh', 'arlinux/components/FEX', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
-    'dxvk': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk', 'arlinux/components/dxvk-legacy', 'arlinux/windows-graphics.cpp', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
+    'dxvk': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
+    'dxvk-legacy': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk-legacy', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
+    'wine-installer': ('arlinux/installer', 'arlinux/build/wine-installer.sh', 'arlinux/components/dxvk', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
     'wine-addons': ('arlinux/build/local_addons.py', 'arlinux/build/runtime_distribution.py'),
     'wine-tls': ('arlinux/components/bionic-deps',),
     'wine-graphics': ('arlinux/build/wine-bionic-graphics.sh', 'arlinux/components/mesa',
@@ -36,7 +38,7 @@ RESOURCES = {name: ('mingw',) for name in SOURCES}
 for name in ('bionic-deps', 'bionic-x11', 'wine-pulse', 'wine-tls', 'wine-graphics', 'wine-vulkan'):
     RESOURCES[name] = ('ndk',)
 RESOURCES.update({'wine-addons': ('addons',), 'wine-bionic-compile': ('mingw', 'ndk'), 'wine-bionic': ('ndk',),
-                  'wine-capture': ('ndk',), 'windows-fonts': (), 'wine-vulkan': ('ndk', 'vulkanHeaders')})
+                  'wine-capture': ('ndk',), 'wine-installer': ('ndk', 'mingw', 'vulkanHeaders'), 'windows-fonts': (), 'wine-vulkan': ('ndk', 'vulkanHeaders')})
 SHARED = ('arlinux/build/github-component.py',
           'arlinux/build/wine-pipeline.py', 'arlinux/build/pipeline_cache.py',
           'arlinux/build/wine_graph.py', 'arlinux/build.sh')

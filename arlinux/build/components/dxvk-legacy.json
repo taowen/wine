@@ -1,0 +1,11 @@
+{
+  "repository": "taowen/dxvk",
+  "runner": "ubuntu-24.04",
+  "dependencies": [],
+  "product": "wine",
+  "compilerCacheMiB": 2048,
+  "release": "arlinux-dxvk-legacy-debug",
+  "products": [
+    "wine"
+  ]
+}

@@ -46,20 +46,20 @@ Input and output hashes remain cache keys and integrity/provenance records.
 Payloads upload before the component completion marker. Compiler publication
 does not replace the tested public `runtime.tar.gz`; explicit promotion does.
 
-The DXVK producer builds two ordered hardware profiles: modern DXVK and the
-Vulkan 1.1-compatible 1.10.3 line pinned at `arlinux/components/dxvk-legacy`.
-Both provide ARM64X and 32-bit DLLs through the same compiler recipe. Modern
-DLLs retain the default runtime directory for existing APKs; the additional
-legacy directory is selected by profile-aware hosts. During
-prefix preparation, the host invokes the stable `windows-graphics.exe` entry.
-That Wine-owned tool reads its private profile configuration, probes each
-profile through DXGI in a separate child process, installs the first admitting
-a hardware adapter and registers its DLL policy. APK code neither parses
-profiles nor selects DLLs or DXVK versions.
-A broken loader or probe is an error, not permission to silently use software
-rendering. Steam and Windows Launcher share the selected profile and prefix.
-The legacy line has older Direct3D/DXGI functionality; hardware admission alone
-does not establish application compatibility.
+Guest Tools bootstraps only the independent `wine-installer` component. Its
+Wine-owned downloader maintains the component endpoints, immutable installation
+store and launch view. It installs the native `wine-bionic` producer first,
+queries that producer's actual Vulkan loader through a native host tool, then
+downloads only the applicable DXVK producer: `dxvk` or Vulkan 1.1 `dxvk-legacy`.
+The probe shares modern DXVK's feature declarations and baseline constants;
+there is no second APK feature table. Both DXVK versions use the same compiler
+recipe and retain their flat runtime DLL layout.
+
+The installer also owns the prefix template, fonts, DLL policy and prefix setup
+executable. APK code provides native execution and initialization lifecycle using
+opaque runtime metadata. It does not enumerate DXVK versions or install DLLs.
+Hardware admission does not establish application compatibility; complete the
+fresh-instance application journey before promotion.
 
 The modern DXVK fork carries upstream incremental `Present1` support, including dirty
 rectangles, scrolling and complete-frame preservation across sequential buffers.
@@ -82,7 +82,7 @@ Windows integration `message-wait` diagnostic compares the same executable on
 native Windows and Wine without modifying or injecting into the application.
 
 The producers are `wine-bionic`, `wine-pe-aarch64`, `wine-pe-x86_64`,
-`wine-pe-i386`, `fex`, `dxvk`, `windows-fonts`, `wine-addons`, `steamworks`,
+`wine-pe-i386`, `fex`, `dxvk`, `dxvk-legacy`, `wine-installer`, `windows-fonts`, `wine-addons`, `steamworks`,
 `windows-accessibility` and `windows-tray`. Their independently hashed compiler
 receipts and source archives remain reproducible. Compiler dependencies are
 built only when required by the requested producer; building `wine-bionic`
