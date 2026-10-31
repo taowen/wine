@@ -60,6 +60,37 @@ void setup(const std::wstring& root) {
     UINT length = GetWindowsDirectoryW(windows.data(), windows.size());
     if (!length || length >= windows.size()) fail("Resolve Windows directory");
     windows.resize(length);
+    // The downloader installs exactly one DXVK producer into the flat runtime directory.
+    Key overrides(HKEY_CURRENT_USER, L"Software\\Wine\\DllOverrides");
+    const auto receipt = windows + L"\\arlinux-runtime.ini";
+    std::wstring previous(capacity, L'\0');
+    DWORD count = GetPrivateProfileStringW(L"graphics", L"dlls", L"", previous.data(), previous.size(), receipt.c_str());
+    if (count >= previous.size() - 1) throw std::runtime_error("Invalid prior runtime installation receipt");
+    previous.resize(count);
+    std::vector<std::wstring> old;
+    for (size_t offset = 0; offset < previous.size();) {
+        size_t end = previous.find(L',', offset);
+        auto name = previous.substr(offset, end == previous.npos ? previous.npos : end - offset);
+        if (name.size() <= 4 || name.compare(name.size() - 4, 4, L".dll") != 0 ||
+            name.substr(0, name.size() - 4).find_first_not_of(L"abcdefghijklmnopqrstuvwxyz0123456789_") != name.npos)
+            throw std::runtime_error("Unsafe prior runtime DLL name");
+        old.push_back(name);
+        if (end == previous.npos) break;
+        offset = end + 1;
+    }
+    for (auto architecture : {std::pair{L"aarch64-windows", L"system32"}, std::pair{L"i386-windows", L"syswow64"}}) {
+        auto target = windows + L"\\" + architecture.second;
+        if (!CreateDirectoryW(target.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) fail("Create graphics directory");
+        for (const auto& name : old) {
+            if (!DeleteFileW((target + L"\\" + name).c_str()) && GetLastError() != ERROR_FILE_NOT_FOUND) fail("Remove prior runtime DLL");
+            auto base = name.substr(0, name.size() - 4);
+            LSTATUS result = RegDeleteValueW(overrides.handle, base.c_str());
+            if (result && result != ERROR_FILE_NOT_FOUND) fail("Clear prior runtime DLL policy", result);
+        }
+    }
+    // Restore Wine builtins after removing only the previous managed graphics files.
+    // Install the newly selected producer after wineboot, so DLLs removed from
+    // that producer retain their builtin replacements.
     auto fonts = windows + L"\\Fonts";
     if (!CreateDirectoryW(fonts.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) fail("Create font directory");
     auto sourceFonts = root + L"\\share\\arlinux\\fonts";
@@ -87,34 +118,11 @@ void setup(const std::wstring& root) {
             if (result) fail("Register font fallback", result);
         }
     }
-    // The downloader installs exactly one DXVK producer into the flat runtime directory.
-    Key overrides(HKEY_CURRENT_USER, L"Software\\Wine\\DllOverrides");
-    const auto receipt = windows + L"\\arlinux-runtime.ini";
-    std::wstring previous(capacity, L'\0');
-    DWORD count = GetPrivateProfileStringW(L"graphics", L"dlls", L"", previous.data(), previous.size(), receipt.c_str());
-    if (count >= previous.size() - 1) throw std::runtime_error("Invalid prior runtime installation receipt");
-    previous.resize(count);
-    std::vector<std::wstring> old;
-    for (size_t offset = 0; offset < previous.size();) {
-        size_t end = previous.find(L',', offset);
-        auto name = previous.substr(offset, end == previous.npos ? previous.npos : end - offset);
-        if (name.size() <= 4 || name.compare(name.size() - 4, 4, L".dll") != 0 ||
-            name.substr(0, name.size() - 4).find_first_not_of(L"abcdefghijklmnopqrstuvwxyz0123456789_") != name.npos)
-            throw std::runtime_error("Unsafe prior runtime DLL name");
-        old.push_back(name);
-        if (end == previous.npos) break;
-        offset = end + 1;
-    }
+    // Install exactly one selected DXVK producer into the repaired prefix.
     std::wstring current;
     for (auto architecture : {std::pair{L"aarch64-windows", L"system32"}, std::pair{L"i386-windows", L"syswow64"}}) {
         auto target = windows + L"\\" + architecture.second;
         if (!CreateDirectoryW(target.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) fail("Create graphics directory");
-        for (const auto& name : old) {
-            if (!DeleteFileW((target + L"\\" + name).c_str()) && GetLastError() != ERROR_FILE_NOT_FOUND) fail("Remove prior runtime DLL");
-            auto base = name.substr(0, name.size() - 4);
-            LSTATUS result = RegDeleteValueW(overrides.handle, base.c_str());
-            if (result && result != ERROR_FILE_NOT_FOUND) fail("Clear prior runtime DLL policy", result);
-        }
         auto source = root + L"\\lib\\wine\\dxvk\\" + architecture.first;
         auto dlls = files(source, L"*.dll");
         if (dlls.empty()) throw std::runtime_error("Selected graphics component contains no DLLs");

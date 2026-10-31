@@ -58,6 +58,21 @@ recipe and retain their flat runtime DLL layout.
 The installer also owns the prefix template, fonts, DLL policy and prefix setup
 executable. APK code provides native execution and initialization lifecycle using
 opaque runtime metadata. It does not enumerate DXVK versions or install DLLs.
+Guest Tools provides the shared `ComponentStore` (release resolution, candidate
+metadata, hashed downloads, safe extraction and immutable cache). Installer
+protocol 1 calls `ensure_runtime(components, state, run_native_tool)`: `components`
+provides `get(endpoint)` and its store root, `state` is the instance state
+folder, and `run_native_tool(runtime, tool, arguments)` returns stdout using the
+selected native runtime's driver. Paths are guest `Path` values; string arguments
+are passed literally. The installer does not import the Windows launcher.
+
+Launch-view identity hashes installed file contents and effective runtime
+configuration. Installer source, probes, endpoints and source provenance do not
+invalidate a prefix when selected launch files and initialization are unchanged.
+Prefix setup removes its previously managed graphics files and overrides first,
+lets wineboot restore Wine builtins, then installs the selected graphics DLLs.
+The receipt is updated only after successful installation.
+
 Hardware admission does not establish application compatibility; complete the
 fresh-instance application journey before promotion.
 
