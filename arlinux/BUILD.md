@@ -207,8 +207,8 @@ acceptance. Preserve the tray as an independent window selected in Yibu's bar.
 Every producer publishes `runtime.tar.gz` in its own fixed
 `arlinux-PRODUCER-latest` release. GitHub supplies its SHA-256, size and URL.
 There is no public or internal total-version JSON and no pairing token.
-The rootfs owns only stable endpoint names in `windows-downloads.tsv`, never a
-Wine build dependency or a version combination.
+Guest Tools owns only the installer bootstrap endpoint in `windows-downloads.tsv`,
+never Wine component endpoints, build dependencies or version combinations.
 
 New builds upload payloads and `component.json` to the component's fixed debug
 release. Candidate preparation replaces `runtime.tar.gz` and then `candidate.json`
