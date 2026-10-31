@@ -83,12 +83,18 @@ def publish_runtime_component(data, framework, record, built, complete=True):
             elif stage == 'dxvk':
                 target = runtime/'files/lib/wine/dxvk'
                 target.mkdir(parents=True)
-                for folder in built.glob('*-windows'):
-                    shutil.copytree(folder, target/folder.name)
-                source = output/'dxvk-source.tar.gz'
-                shutil.copyfile(built/'source.tar.gz', source)
-                metadata['dxvkCommit'] = (built/'source-commit').read_text().strip()
-                metadata['originalSources']['dxvk'] = dict(asset=source.name, sha256=sha(source))
+                shutil.copyfile(built/'profiles.json', target/'profiles.json')
+                helper = runtime/'files/lib/arlinux/dxvk-probe.exe'
+                helper.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(built/'dxvk-probe.exe', helper)
+                for profile in ('modern', 'legacy'):
+                    for folder in (built/profile).glob('*-windows'):
+                        shutil.copytree(folder, target/profile/folder.name)
+                    name = 'dxvk' if profile == 'modern' else 'dxvk-legacy'
+                    source = output/(name+'-source.tar.gz')
+                    shutil.copyfile(built/profile/'source.tar.gz', source)
+                    metadata['dxvkCommit' if profile == 'modern' else 'dxvkLegacyCommit'] = (built/profile/'source-commit').read_text().strip()
+                    metadata['originalSources'][name] = dict(asset=source.name, sha256=sha(source))
             elif stage == 'windows-fonts':
                 import sys
                 sys.path.insert(0, str(framework/'arlinux'))

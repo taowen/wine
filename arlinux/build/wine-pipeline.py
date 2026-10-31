@@ -20,7 +20,7 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
         'wine-pulse': (),
         'wine-pe': ('arlinux/build/wine-pe.sh',),
         'fex': ('arlinux/build/fex-windows.sh', 'arlinux/components/FEX'),
-        'dxvk': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk'),
+        'dxvk': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk', 'arlinux/components/dxvk-legacy', 'arlinux/dxvk-probe.c'),
         'wine-tls': ('arlinux/components/bionic-deps/build-tls.sh',),
         'wine-graphics': ('arlinux/build/wine-bionic-graphics.sh', 'arlinux/components/mesa', 'arlinux/components/libxshmfence', 'arlinux/components/libhybris/arlinux/graphics-protocols'),
         'wine-vulkan': ('arlinux/components/libhybris/arlinux/build-bionic-vulkan.py', 'arlinux/components/libhybris', 'arlinux/components/android-headers'),

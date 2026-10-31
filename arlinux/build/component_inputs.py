@@ -14,7 +14,7 @@ SOURCES = {
     **{'wine-pe-'+arch: ('@wine', *PE, 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py') for arch in ('aarch64', 'x86_64', 'i386')},
     'wine-pe': (),
     'fex': ('arlinux/build/fex-windows.sh', 'arlinux/components/FEX', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
-    'dxvk': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
+    'dxvk': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk', 'arlinux/components/dxvk-legacy', 'arlinux/dxvk-probe.c', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
     'wine-addons': ('arlinux/build/local_addons.py', 'arlinux/build/runtime_distribution.py'),
     'wine-tls': ('arlinux/components/bionic-deps',),
     'wine-graphics': ('arlinux/build/wine-bionic-graphics.sh', 'arlinux/components/mesa',

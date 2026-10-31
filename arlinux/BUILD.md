@@ -46,7 +46,17 @@ Input and output hashes remain cache keys and integrity/provenance records.
 Payloads upload before the component completion marker. Compiler publication
 does not replace the tested public `runtime.tar.gz`; explicit promotion does.
 
-The DXVK fork carries upstream incremental `Present1` support, including dirty
+The DXVK producer builds two ordered hardware profiles: modern DXVK and the
+Vulkan 1.1-compatible 1.10.3 line pinned at `arlinux/components/dxvk-legacy`.
+Both provide ARM64X and 32-bit DLLs through the same compiler recipe. During
+prefix preparation, the Android host probes each profile through its own DXGI
+adapter enumeration and installs the first that admits a hardware adapter.
+A broken loader or probe is an error, not permission to silently use software
+rendering. Steam and Windows Launcher share the selected profile and prefix.
+The legacy line has older Direct3D/DXGI functionality; hardware admission alone
+does not establish application compatibility.
+
+The modern DXVK fork carries upstream incremental `Present1` support, including dirty
 rectangles, scrolling and complete-frame preservation across sequential buffers.
 Its offscreen composition path applies the same operations before rotating
 buffers, so Wine's DirectComposition readback receives a complete presented

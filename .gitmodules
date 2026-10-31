@@ -36,3 +36,7 @@
 	path = arlinux/components/dxvk
 	url = https://github.com/taowen/dxvk.git
 	branch = arlinux
+[submodule "arlinux/components/dxvk-legacy"]
+	path = arlinux/components/dxvk-legacy
+	url = https://github.com/taowen/dxvk.git
+	branch = codex/vulkan11
