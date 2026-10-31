@@ -124,7 +124,15 @@ stage = Path(sys.argv[1])
 # Configure logs contain runner hostnames and timestamps, not tool inputs.
 # Keep diagnostics in the private builder and export the usable tools separately.
 exported = stage/'host-tools'
-shutil.copytree(stage/'tools', exported, symlinks=True, dirs_exist_ok=True,
+# This is a regenerated export, not a merge target. copytree with
+# dirs_exist_ok replaces regular files but fails on existing symlinks after
+# restoring a compiler cache. Keep compiled tools intact and replace only
+# this owned export directory.
+if exported.is_symlink():
+    exported.unlink()
+elif exported.exists():
+    shutil.rmtree(exported)
+shutil.copytree(stage/'tools', exported, symlinks=True,
                 ignore=shutil.ignore_patterns('*.log'))
 (stage/'output/build-state.json').write_text(json.dumps({'tools': str(exported)}) + '\n')
 BUILD_STATE
