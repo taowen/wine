@@ -778,6 +778,26 @@ static void wayland_configure_window(HWND hwnd)
         && !(state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN))
         NtUserSetWindowLong(hwnd, GWL_STYLE, style ^ WS_MAXIMIZE, FALSE);
 
+    /* Wayland configures a surface size without a desktop position. Keeping
+     * the old Win32 origin after enlarging a centered window can put its
+     * client outside the monitor, where the server clips mouse input. Keep
+     * compositor-sized windows addressable in the Win32 coordinate space. */
+    if (!(flags & SWP_NOSIZE))
+    {
+        MONITORINFO monitor = { .cbSize = sizeof(monitor) };
+        HMONITOR handle = NtUserMonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
+        if (handle && NtUserGetMonitorInfo(handle, &monitor))
+        {
+            int x = max(monitor.rcMonitor.left, min(rect.left, monitor.rcMonitor.right - (rect.right - rect.left)));
+            int y = max(monitor.rcMonitor.top, min(rect.top, monitor.rcMonitor.bottom - (rect.bottom - rect.top)));
+            if (x != rect.left || y != rect.top)
+            {
+                OffsetRect(&rect, x - rect.left, y - rect.top);
+                flags &= ~SWP_NOMOVE;
+            }
+        }
+    }
+
     /* The Wayland maximized and fullscreen states are very strict about
      * surface size, so don't let the application override it. The tiled state
      * is not as strict, but it indicates a strong size preference, so try to
