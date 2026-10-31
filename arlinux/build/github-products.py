@@ -208,20 +208,20 @@ class Coordinator:
                     asset=next((a for a in candidate['assets'] if a['name']=='component.json'), None)
                     digest=asset.get('digest','') if asset else ''
                     if digest.startswith('sha256:'):
-                        request['cacheSeed']=dict(repository=repository,
-                            identity='',
-                            manifestUrl=asset['browser_download_url'],manifestSha256=digest[7:])
                         # Read the actual identity from the verified fixed-release metadata.
                         file=self.state/request['identity']/'seed.json'
                         download(asset['browser_download_url'],file,digest[7:])
                         seed=json.loads(file.read_text())
                         if seed['stage']!=stage:
                             raise ValueError('Cache seed belongs to a different component')
-                        request['cacheSeed']['identity']=seed['identity']
-                        # The fixed release can be replaced while this job is
-                        # queued. Pin the already verified manifest bytes, not
-                        # a second read of its mutable completion-marker URL.
-                        request['cacheSeed']['manifestText']=file.read_bytes().decode('utf-8')
+                        # Runtime-only producers publish delivery archives, not
+                        # compiler capsules. Their Actions caches remain usable,
+                        # but a runtime archive cannot seed compiler work trees.
+                        if 'archiveSha256' in seed:
+                            request['cacheSeed']=dict(repository=repository, identity=seed['identity'],
+                                manifestUrl=asset['browser_download_url'], manifestSha256=digest[7:],
+                                # Pin bytes: the fixed release can change while queued.
+                                manifestText=file.read_bytes().decode('utf-8'))
             payload=json.dumps(request,sort_keys=True)
             gh('workflow','run',self.plan['workflow'],'--repo',repository,'-f','request='+payload)
             print('START '+repository+'/'+stage,flush=True)
