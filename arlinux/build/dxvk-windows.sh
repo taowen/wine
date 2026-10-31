@@ -87,8 +87,8 @@ printf '%s\n' "$revision" > "$output/$variant/source-commit"
 tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu \
     -czf "$output/$variant/source.tar.gz" --exclude=.git -C "$cache" source
 }
-build_variant modern dxvk 'dxgi d3d8 d3d9 d3d10core d3d11'
 build_variant legacy dxvk-legacy 'dxgi d3d9 d3d10core d3d10 d3d10_1 d3d11'
+build_variant modern dxvk 'dxgi d3d8 d3d9 d3d10core d3d11'
 "$compiler/aarch64-w64-mingw32-clang" -std=c11 -O2 -municode \
     -Wl,--no-insert-timestamp "$repo/arlinux/dxvk-probe.c" -o "$output/dxvk-probe.exe"
 python3 - "$output" <<'PY'
