@@ -83,10 +83,10 @@ def publish_runtime_component(data, framework, record, built, complete=True):
             elif stage == 'dxvk':
                 target = runtime/'files/lib/wine/dxvk'
                 target.mkdir(parents=True)
-                shutil.copyfile(built/'profiles.json', target/'profiles.json')
-                helper = runtime/'files/lib/arlinux/dxvk-probe.exe'
+                shutil.copyfile(built/'profiles.ini', target/'profiles.ini')
+                helper = runtime/'files/lib/arlinux/windows-graphics.exe'
                 helper.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(built/'dxvk-probe.exe', helper)
+                shutil.copyfile(built/'windows-graphics.exe', helper)
                 for profile in ('modern', 'legacy'):
                     destination = target if profile == 'modern' else target/profile
                     for folder in (built/profile).glob('*-windows'):

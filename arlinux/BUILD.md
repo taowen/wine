@@ -51,8 +51,11 @@ Vulkan 1.1-compatible 1.10.3 line pinned at `arlinux/components/dxvk-legacy`.
 Both provide ARM64X and 32-bit DLLs through the same compiler recipe. Modern
 DLLs retain the default runtime directory for existing APKs; the additional
 legacy directory is selected by profile-aware hosts. During
-prefix preparation, the Android host probes each profile through its own DXGI
-adapter enumeration and installs the first that admits a hardware adapter.
+prefix preparation, the host invokes the stable `windows-graphics.exe` entry.
+That Wine-owned tool reads its private profile configuration, probes each
+profile through DXGI in a separate child process, installs the first admitting
+a hardware adapter and registers its DLL policy. APK code neither parses
+profiles nor selects DLLs or DXVK versions.
 A broken loader or probe is an error, not permission to silently use software
 rendering. Steam and Windows Launcher share the selected profile and prefix.
 The legacy line has older Direct3D/DXGI functionality; hardware admission alone

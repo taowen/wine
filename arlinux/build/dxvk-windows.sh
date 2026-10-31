@@ -87,17 +87,19 @@ printf '%s\n' "$revision" > "$output/$variant/source-commit"
 tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu \
     -czf "$output/$variant/source.tar.gz" --exclude=.git -C "$cache" source
 }
+mkdir -p "$output"
+"$compiler/aarch64-w64-mingw32-clang++" -std=c++17 -O2 -static -municode \
+    -Wl,--no-insert-timestamp "$repo/arlinux/windows-graphics.cpp" -ladvapi32 -o "$output/windows-graphics.exe"
 build_variant legacy dxvk-legacy 'dxgi d3d9 d3d10core d3d10 d3d10_1 d3d11'
 build_variant modern dxvk 'dxgi d3d8 d3d9 d3d10core d3d11'
-"$compiler/aarch64-w64-mingw32-clang" -std=c11 -O2 -municode \
-    -Wl,--no-insert-timestamp "$repo/arlinux/dxvk-probe.c" -o "$output/dxvk-probe.exe"
 python3 - "$output" <<'PY'
 from pathlib import Path
-import json,sys
+import configparser,sys
 root=Path(sys.argv[1])
-profiles=[]
+config=configparser.ConfigParser()
+config['runtime']=dict(format='1',profiles='modern,legacy')
 for name,version in (('modern','2.7.1'), ('legacy','1.10.3')):
     dlls=sorted(path.stem for path in (root/name/'aarch64-windows').glob('*.dll'))
-    profiles.append(dict(name=name,version=version,directory=('.' if name=='modern' else name),dlls=dlls))
-(root/'profiles.json').write_text(json.dumps(dict(format=1,profiles=profiles),sort_keys=True)+'\n')
+    config[name]=dict(version=version,directory=('.' if name=='modern' else name),dlls=','.join(dlls))
+with (root/'profiles.ini').open('w') as file: config.write(file)
 PY
