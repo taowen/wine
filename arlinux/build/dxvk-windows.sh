@@ -98,6 +98,6 @@ root=Path(sys.argv[1])
 profiles=[]
 for name,version in (('modern','2.7.1'), ('legacy','1.10.3')):
     dlls=sorted(path.stem for path in (root/name/'aarch64-windows').glob('*.dll'))
-    profiles.append(dict(name=name,version=version,directory=name,dlls=dlls))
+    profiles.append(dict(name=name,version=version,directory=('.' if name=='modern' else name),dlls=dlls))
 (root/'profiles.json').write_text(json.dumps(dict(format=1,profiles=profiles),sort_keys=True)+'\n')
 PY

@@ -88,8 +88,9 @@ def publish_runtime_component(data, framework, record, built, complete=True):
                 helper.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(built/'dxvk-probe.exe', helper)
                 for profile in ('modern', 'legacy'):
+                    destination = target if profile == 'modern' else target/profile
                     for folder in (built/profile).glob('*-windows'):
-                        shutil.copytree(folder, target/profile/folder.name)
+                        shutil.copytree(folder, destination/folder.name)
                     name = 'dxvk' if profile == 'modern' else 'dxvk-legacy'
                     source = output/(name+'-source.tar.gz')
                     shutil.copyfile(built/profile/'source.tar.gz', source)

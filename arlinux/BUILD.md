@@ -48,7 +48,9 @@ does not replace the tested public `runtime.tar.gz`; explicit promotion does.
 
 The DXVK producer builds two ordered hardware profiles: modern DXVK and the
 Vulkan 1.1-compatible 1.10.3 line pinned at `arlinux/components/dxvk-legacy`.
-Both provide ARM64X and 32-bit DLLs through the same compiler recipe. During
+Both provide ARM64X and 32-bit DLLs through the same compiler recipe. Modern
+DLLs retain the default runtime directory for existing APKs; the additional
+legacy directory is selected by profile-aware hosts. During
 prefix preparation, the Android host probes each profile through its own DXGI
 adapter enumeration and installs the first that admits a hardware adapter.
 A broken loader or probe is an error, not permission to silently use software
