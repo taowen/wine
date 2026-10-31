@@ -146,26 +146,6 @@ pins, workflow IDs, preparation, transfer, compilation and publication costs.
 Repeat the complete entry to measure verified reuse; a cache hit is not evidence
 of a faster fresh compilation.
 
-On 2026-10-20, candidate `30b74024f6aedb153503486fc95fc4552300fd77`
-completed the independent-manifest pipeline. Its 3,716-byte selection has SHA-256
-`0a3e0a629aa373950f65d5b5d53a3d7ea6736e08137315ba59ad7ef94c32a59e`.
-The native runtime components total 17.74 MiB; PE, vendor and support downloads
-are separate. The first publication/recovery run took 1,204.86 seconds, including
-1,096.875 seconds graph work and the initial runtime transfers. Repeating the
-complete coordinator for the identical pin took 3.328 seconds, including 2.609
-seconds graph work, with no new hosted job or runtime download. This excludes
-device seeding and is verified reuse, not a fresh compiler benchmark.
-
-The corrected consumer APK used rootfs
-`7e7b406d8e860fe7c8b089ccffdd86e35232ecc2`; installed APK SHA-256 was
-`cdc7d1238390f8df3355a96e386b439de44b19d2fbf9a54dddbe16a9c4ba4a49`.
-Xiaomi 15 (`3fad759`), fresh instance `yibu-62fb6886`, passed built-in FontForge
-first-use runtime installation, vendor installation, typed Arial opening, visible
-glyph rendering, SFD save, normal quit, icon relaunch with the saved SFD and final
-quit. Live native mappings identified the exact selection above. This validates
-the split installation journey; it does not establish Power BI/WebView2 or game
-compatibility. Those regressions and public latest promotion remain pending.
-
 ## Development validation
 
 Use the Android checkout's sole entry. A Wine invocation defaults to the native
