@@ -160,6 +160,10 @@ not a blanket invalidation key. Compiler outputs, references and receipts are
 verified before reuse. Compiler caches are bounded in the graph; exported SDK
 capsules do not duplicate complete private object trees or unrelated toolchains.
 
+Hosted preparation fetches pinned submodules with bounded parallel jobs. Native
+Wine uses only FEX's UnixLib source files and does not initialize FEX's recursive
+dependencies; the independent FEX DLL producer initializes that compiler tree.
+
 Actions cache extraction preserves original file permissions, which are part of
 output receipts. Restored compiler outputs and references are verified before
 choosing them over a release seed. An invalid restored cache reports its first

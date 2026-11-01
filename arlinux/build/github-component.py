@@ -53,6 +53,7 @@ def request():
 def prepare(data, framework):
     if os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted':
         raise RuntimeError('Hosted-runner bootstrap cannot run on a workstation')
+    fetch_jobs = str(min(8, os.cpu_count() or 2))
     if data['stage'] == 'windows-fonts':
         root = framework.parent
         run(sys.executable, '-m', 'pip', 'install', 'zstandard==0.25.0')
@@ -71,7 +72,7 @@ def prepare(data, framework):
             run(sys.executable, '-m', 'pip', 'install', '--target', python_lib, 'zstandard==0.25.0')
             modules, _ = requirements(data['stage'], plan)
             if modules:
-                run('git', '-C', framework, 'submodule', 'update', '--init', '--depth', '1', '--', *modules)
+                run('git', '-C', framework, 'submodule', 'update', '--init', '--depth', '1', '--jobs', fetch_jobs, '--', *modules)
             with Path(os.environ['GITHUB_ENV']).open('a') as out:
                 out.write('ARLINUX_FRAMEWORK='+framework.as_posix()+'\n')
                 out.write('ARLINUX_WORKSPACE='+root.as_posix()+'\n')
@@ -125,12 +126,14 @@ def prepare(data, framework):
         plan = load_plan(framework/'arlinux/build')
         modules, _ = requirements(data['stage'], plan)
         if modules:
-            run('git', '-C', framework, 'submodule', 'update', '--init', '--depth', '1', '--', *modules)
+            run('git', '-C', framework, 'submodule', 'update', '--init', '--depth', '1', '--jobs', fetch_jobs, '--', *modules)
         if 'arlinux/components/gfxreconstruct' in modules:
-            run('git', '-C', framework/'arlinux/components/gfxreconstruct', 'submodule', 'update', '--init', '--depth', '1',
+            run('git', '-C', framework/'arlinux/components/gfxreconstruct', 'submodule', 'update', '--init', '--depth', '1', '--jobs', fetch_jobs,
                 '--', 'external/Vulkan-Headers', 'external/SPIRV-Headers', 'external/SPIRV-Reflect')
-        if 'arlinux/components/FEX' in modules:
-            run('git', '-C', framework/'arlinux/components/FEX', 'submodule', 'update', '--init', '--recursive', '--depth', '1')
+        # Native Wine consumes only FEXUnixLib.cpp/.h, without FEX's CMake tree.
+        # Only the FEX DLL producer needs its recursive compiler dependencies.
+        if data['stage'] == 'fex':
+            run('git', '-C', framework/'arlinux/components/FEX', 'submodule', 'update', '--init', '--recursive', '--depth', '1', '--jobs', fetch_jobs)
         for marker in [framework/'.git', *framework.glob('arlinux/components/*/.git')]:
             if marker.exists():
                 run('git', 'config', '--global', '--add', 'safe.directory', marker.parent)
