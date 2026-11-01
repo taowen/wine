@@ -7,6 +7,8 @@
 #include <filesystem>
 #include <stdexcept>
 #include <vector>
+#include <memory>
+#include <unistd.h>
 #include "dxvk_device_requirements.h"
 
 namespace {
@@ -22,6 +24,14 @@ struct Features {
 }
 int main(int argc, char** argv) {
     try {
+        // Vendor drivers may write diagnostics directly to stdout. Keep the
+        // protocol stream private before loading them; diagnostics use stderr.
+        const int output = dup(STDOUT_FILENO);
+        if (output < 0) throw std::runtime_error("Cannot duplicate probe output");
+        std::unique_ptr<FILE, decltype(&std::fclose)> result(fdopen(output, "w"), &std::fclose);
+        if (!result) { close(output); throw std::runtime_error("Cannot open probe output"); }
+        if (dup2(STDERR_FILENO, STDOUT_FILENO) < 0)
+            throw std::runtime_error("Cannot redirect driver diagnostics");
         if (argc != 3) throw std::runtime_error("Expected runtime Vulkan loader and driver (turnip or system)");
         const std::string driver = argv[2];
         if (driver != "turnip" && driver != "system") throw std::runtime_error("Unknown Vulkan driver");
@@ -134,7 +144,8 @@ int main(int argc, char** argv) {
         }
         vkDestroyInstance(instance, nullptr);
         dlclose(library);
-        std::printf("{\"modern\":%s,\"legacy\":%s}\n", modern ? "true" : "false", legacy ? "true" : "false");
+        if (std::fprintf(result.get(), "{\"modern\":%s,\"legacy\":%s}\n", modern ? "true" : "false", legacy ? "true" : "false") < 0 ||
+            std::fflush(result.get()) != 0) throw std::runtime_error("Cannot write probe output");
         return 0;
     } catch (const std::exception& error) {
         std::fprintf(stderr, "Wine Vulkan capability probe: %s\n", error.what());
