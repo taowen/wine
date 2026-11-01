@@ -236,7 +236,8 @@ static void wayland_win_data_update_input(struct wayland_win_data *data, struct 
     data->input_dirty = FALSE;
 }
 
-static BOOL wayland_win_data_create_wayland_surface(struct wayland_win_data *data, struct wayland_surface *owner_surface)
+static BOOL wayland_win_data_create_wayland_surface(struct wayland_win_data *data, struct wayland_surface *owner_surface,
+                                                   struct wayland_window_config *previous)
 {
     struct wayland_surface *surface;
     enum wayland_surface_role role;
@@ -265,6 +266,9 @@ static BOOL wayland_win_data_create_wayland_surface(struct wayland_win_data *dat
 
     if (!(surface = data->wayland_surface) && !(surface = wayland_surface_create(data->hwnd))) return FALSE;
 
+    memset(previous, 0, sizeof(*previous));
+    if (role == WAYLAND_SURFACE_ROLE_TOPLEVEL && surface->role == role && surface->xdg_toplevel)
+        *previous = surface->window;
     wayland_win_data_update_input(data, surface);
 
     /* If the window is a visible toplevel make it a wayland
@@ -294,18 +298,25 @@ static BOOL wayland_win_data_create_wayland_surface(struct wayland_win_data *dat
     return TRUE;
 }
 
-static void wayland_surface_update_state_toplevel(struct wayland_surface *surface)
+static void wayland_surface_update_state_toplevel(struct wayland_surface *surface,
+                                                   const struct wayland_window_config *previous)
 {
     BOOL processing_config = surface->processing.serial &&
                              !surface->processing.processed;
+    enum wayland_surface_config_state changed = surface->window.state ^ previous->state;
+
+    /* Iconic HWND coordinates do not describe a fullscreen request. Reconcile
+     * the restored Win32 placement once, not on later activation updates. */
+    if (previous->minimized) changed |= surface->window.state ^ surface->current.state;
 
     TRACE("hwnd=%p window_state=%#x %s->state=%#x\n",
           surface->hwnd, surface->window.state,
           processing_config ? "processing" : "current",
           processing_config ? surface->processing.state : surface->current.state);
 
-    /* If we are not processing a compositor requested config, use the
-     * window state to determine and update the Wayland state. */
+    /* Win32 state changes request a transition; current is the compositor's
+     * actual state, not an application request to repeat on every activation.
+     * A compositor configure can legitimately leave the HWND geometry unchanged. */
     if (!processing_config)
     {
         xdg_toplevel_set_min_size(surface->xdg_toplevel, 0, 0);
@@ -313,26 +324,26 @@ static void wayland_surface_update_state_toplevel(struct wayland_surface *surfac
 
          /* First do all state unsettings, before setting new state. Some
           * Wayland compositors misbehave if the order is reversed. */
-        if (!(surface->window.state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) &&
-            (surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) &&
+        if ((changed & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) &&
+            !(surface->window.state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) &&
             !surface->window.minimized)
         {
             xdg_toplevel_unset_maximized(surface->xdg_toplevel);
         }
-        if (!(surface->window.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
-            (surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
+        if ((changed & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
+            !(surface->window.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
             !surface->window.minimized)
         {
             xdg_toplevel_unset_fullscreen(surface->xdg_toplevel);
         }
 
-        if ((surface->window.state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) &&
-           !(surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED))
+        if ((changed & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) &&
+            (surface->window.state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED))
         {
             xdg_toplevel_set_maximized(surface->xdg_toplevel);
         }
-        if ((surface->window.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
-           !(surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN))
+        if ((changed & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
+            (surface->window.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN))
         {
             xdg_toplevel_set_fullscreen(surface->xdg_toplevel, NULL);
         }
@@ -347,7 +358,8 @@ static void wayland_surface_update_state_toplevel(struct wayland_surface *surfac
     }
 }
 
-static void wayland_win_data_update_wayland_state(struct wayland_win_data *data)
+static void wayland_win_data_update_wayland_state(struct wayland_win_data *data,
+                                               const struct wayland_window_config *previous)
 {
     struct wayland_surface *surface = data->wayland_surface;
 
@@ -357,7 +369,7 @@ static void wayland_win_data_update_wayland_state(struct wayland_win_data *data)
         break;
     case WAYLAND_SURFACE_ROLE_TOPLEVEL:
         if (!surface->xdg_surface) break; /* surface role has been cleared */
-        wayland_surface_update_state_toplevel(surface);
+        wayland_surface_update_state_toplevel(surface, previous);
         break;
     case WAYLAND_SURFACE_ROLE_SUBSURFACE:
         TRACE("hwnd=%p subsurface owner=%p\n", surface->hwnd, surface->owner_hwnd);
@@ -570,6 +582,7 @@ void WAYLAND_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     struct wayland_surface *owner_surface;
     struct wayland_win_data *data, *owner_data;
     BOOL managed, fullscreen = swp_flags & WINE_SWP_FULLSCREEN;
+    struct wayland_window_config previous;
 
     TRACE("hwnd %p new_rects %s after %p flags %08x\n", hwnd, debugstr_window_rects(new_rects), insert_after, swp_flags);
 
@@ -597,14 +610,14 @@ void WAYLAND_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UIN
             data->wayland_surface = NULL;
         }
     }
-    else if (wayland_win_data_create_wayland_surface(data, managed ? NULL : owner_surface))
+    else if (wayland_win_data_create_wayland_surface(data, managed ? NULL : owner_surface, &previous))
     {
         /* Managed owned windows are independent toplevels, not subsurfaces,
          * but the compositor still needs their Win32 transient relationship. */
         if (managed && wayland_surface_is_toplevel(data->wayland_surface))
             xdg_toplevel_set_parent(data->wayland_surface->xdg_toplevel,
                 owner_surface && wayland_surface_is_toplevel(owner_surface) ? owner_surface->xdg_toplevel : NULL);
-        wayland_win_data_update_wayland_state(data);
+        wayland_win_data_update_wayland_state(data, &previous);
         if (!wl_list_empty(&data->wayland_surface->hwnd_dmabuf_surfaces))
             wayland_hwnd_gdi_update(data->wayland_surface);
     }
@@ -630,7 +643,7 @@ static void wayland_configure_window(HWND hwnd)
     BOOL restoring_from_minimize = FALSE;
     BOOL restoring_from_maximize;
     struct wayland_win_data *data;
-    RECT rect, surface_rect, frame, restore_rect = {0};
+    RECT rect, surface_rect, frame;
 
     if (!(data = wayland_win_data_get(hwnd))) return;
     if (!(surface = data->wayland_surface))
@@ -657,28 +670,17 @@ static void wayland_configure_window(HWND hwnd)
     memset(&surface->requested, 0, sizeof(surface->requested));
 
     state = surface->processing.state;
-    /* A compositor fullscreen toggle does not change Win32's placement style.
-     * Preserve its pre-fullscreen geometry independently of WS_MAXIMIZE. */
-    if ((state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
-        !(surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
-        !data->is_fullscreen)
-        data->fullscreen_restore_rect = data->rects.window;
-    else if (!(state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
-             (surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN))
-    {
-        if (!(state & (WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED |
-                       WAYLAND_SURFACE_CONFIG_STATE_TILED)))
-            restore_rect = data->fullscreen_restore_rect;
-        SetRectEmpty(&data->fullscreen_restore_rect);
-    }
     restoring_from_maximize =
         (surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) &&
         !(state & (WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED |
                    WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN |
                    WAYLAND_SURFACE_CONFIG_STATE_TILED));
-    /* Ignore size hints if we don't have a state that requires strict
-     * size adherence, in order to avoid spurious resizes. */
-    if (state)
+    /* Restore sizes belong to the compositor too. Dropping a normal-state
+     * configure while leaving fullscreen/maximized retains the monitor-sized
+     * HWND and can turn an unrelated activation into a new fullscreen request.
+     * Outside these transitions, ignore advisory normal sizes as before. */
+    if (state || ((surface->current.state | surface->window.state) &
+                  (WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN | WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED)))
     {
         width = surface->processing.rect.right - surface->processing.rect.left;
         height = surface->processing.rect.bottom - surface->processing.rect.top;
@@ -772,12 +774,6 @@ static void wayland_configure_window(HWND hwnd)
     flags |= SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOMOVE;
     if (rect.left == rect.right || rect.bottom == rect.top) flags |= SWP_NOSIZE;
 
-    if (!IsRectEmpty(&restore_rect))
-    {
-        rect = restore_rect;
-        flags &= ~(SWP_NOSIZE | SWP_NOMOVE);
-    }
-
     style = NtUserGetWindowLongW(hwnd, GWL_STYLE);
     if ((state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) && !(style & WS_MAXIMIZE))
     {
@@ -785,7 +781,7 @@ static void wayland_configure_window(HWND hwnd)
          * normal Win32 placement before changing the style or the size. */
         NtUserGetInternalWindowPos(hwnd, NULL, NULL);
     }
-    else if (restoring_from_maximize && (style & WS_MAXIMIZE))
+    else if (restoring_from_maximize && (style & WS_MAXIMIZE) && (flags & SWP_NOSIZE))
     {
         RECT normal;
         /* A normal-state configure can legally provide no size. Keeping the
