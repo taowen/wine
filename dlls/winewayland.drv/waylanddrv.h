@@ -302,6 +302,7 @@ struct wayland_surface
             struct xdg_surface *xdg_surface;
             struct xdg_toplevel *xdg_toplevel;
             struct zxdg_toplevel_decoration_v1 *decoration;
+            uint32_t requested_decoration_mode;
             BOOL server_side_decoration;
             struct xdg_toplevel_icon_v1 *xdg_toplevel_icon;
         };

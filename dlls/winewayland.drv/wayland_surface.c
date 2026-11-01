@@ -445,6 +445,24 @@ static const struct zxdg_toplevel_decoration_v1_listener decoration_listener =
     decoration_handle_configure
 };
 
+static void wayland_surface_update_decoration(struct wayland_surface *surface)
+{
+    DWORD style = NtUserGetWindowLongW(surface->hwnd, GWL_STYLE);
+    uint32_t mode;
+
+    if (!surface->decoration) return;
+
+    /* Delegate ordinary Win32 frames to the compositor. Borderless windows
+     * still own their presentation; changing styles must renegotiate without
+     * destroying the toplevel or changing the application's Win32 styles. */
+    mode = (style & WS_CAPTION) == WS_CAPTION || (style & WS_THICKFRAME)
+           ? ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
+           : ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+    if (surface->requested_decoration_mode == mode) return;
+    surface->requested_decoration_mode = mode;
+    zxdg_toplevel_decoration_v1_set_mode(surface->decoration, mode);
+}
+
 void wayland_surface_make_toplevel(struct wayland_surface *surface)
 {
     WCHAR text[1024];
@@ -452,7 +470,11 @@ void wayland_surface_make_toplevel(struct wayland_surface *surface)
     TRACE("surface=%p\n", surface);
 
     assert(!surface->role || surface->role == WAYLAND_SURFACE_ROLE_TOPLEVEL);
-    if (surface->xdg_surface && surface->xdg_toplevel) return;
+    if (surface->xdg_surface && surface->xdg_toplevel)
+    {
+        wayland_surface_update_decoration(surface);
+        return;
+    }
 
     wayland_surface_clear_role(surface);
     surface->role = WAYLAND_SURFACE_ROLE_TOPLEVEL;
@@ -472,8 +494,7 @@ void wayland_surface_make_toplevel(struct wayland_surface *surface)
             process_wayland.decoration_manager, surface->xdg_toplevel);
         zxdg_toplevel_decoration_v1_add_listener(surface->decoration,
                                                 &decoration_listener, surface->hwnd);
-        zxdg_toplevel_decoration_v1_set_mode(surface->decoration,
-                                             ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+        wayland_surface_update_decoration(surface);
     }
 
     if (process_name)
@@ -580,6 +601,7 @@ void wayland_surface_clear_role(struct wayland_surface *surface)
             surface->decoration = NULL;
         }
         surface->server_side_decoration = FALSE;
+        surface->requested_decoration_mode = 0;
 
         if (surface->xdg_toplevel)
         {

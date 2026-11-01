@@ -76,6 +76,14 @@ The receipt is updated only after successful installation.
 Hardware admission does not establish application compatibility; complete the
 fresh-instance application journey before promotion.
 
+Wayland windows with a Win32 caption or resizable frame request compositor
+decorations through `xdg-decoration`. Classic supplies its normal window controls;
+Wine's existing visible-frame masks suppress the duplicate Windows frame after
+negotiation. Borderless windows request client decorations, and style changes
+renegotiate on the same toplevel. Compositors that decline server decorations
+retain Wine's ordinary client frame. Window close remains the standard
+`xdg_toplevel.close` to `SC_CLOSE` path, not process termination.
+
 The modern DXVK fork carries upstream incremental `Present1` support, including dirty
 rectangles, scrolling and complete-frame preservation across sequential buffers.
 Its offscreen composition path applies the same operations before rotating
