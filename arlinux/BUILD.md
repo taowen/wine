@@ -163,6 +163,8 @@ capsules do not duplicate complete private object trees or unrelated toolchains.
 Hosted preparation fetches pinned submodules with bounded parallel jobs. Native
 Wine uses only FEX's UnixLib source files and does not initialize FEX's recursive
 dependencies; the independent FEX DLL producer initializes that compiler tree.
+Large compiler jobs reclaim optional preinstalled runner SDKs only while free
+space is below 20 GiB, rather than deleting every SDK on each warm build.
 
 Actions cache extraction preserves original file permissions, which are part of
 output receipts. Restored compiler outputs and references are verified before

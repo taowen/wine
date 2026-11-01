@@ -88,8 +88,15 @@ def prepare(data, framework):
         # Only remove optional software on the ephemeral GitHub runner.
         # Never run this cleanup in a workstation or self-hosted environment.
         if data['stage'] in ('wine-bionic-compile', 'wine-graphics', 'fex'):
-            run('sudo', 'rm', '-rf', '/usr/share/dotnet', '/usr/local/lib/android',
-                '/opt/ghc', '/usr/local/share/boost', '/opt/hostedtoolcache/CodeQL')
+            minimum_free = 20 * 1024**3
+            print('Runner free space before preparation: '+str(shutil.disk_usage(root).free), flush=True)
+            for optional in ('/usr/share/dotnet', '/usr/local/lib/android', '/opt/ghc',
+                             '/usr/local/share/boost', '/opt/hostedtoolcache/CodeQL'):
+                if shutil.disk_usage(root).free >= minimum_free:
+                    break
+                print('Reclaim runner space: '+optional, flush=True)
+                run('sudo', 'rm', '-rf', optional)
+            print('Runner free space after preparation: '+str(shutil.disk_usage(root).free), flush=True)
         packages = ['autoconf', 'automake', 'libtool', 'build-essential', 'bison', 'flex',
             'curl', 'git', 'cmake', 'ninja-build', 'patchelf', 'pkg-config', 'python3',
             'python3-venv', 'python3-pip', 'python3-mako', 'python3-zstandard',
