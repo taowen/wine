@@ -151,6 +151,15 @@ class Coordinator:
             manifestUrl=asset['browser_download_url'],manifestSha256=digest[7:])
         if reference['manifestUrl'] != url:
             raise ValueError('Unexpected immutable component manifest URL')
+        pinned_name = 'component-'+digest[7:]+'.json'
+        pinned = next((a for a in release['assets'] if a['name'] == pinned_name), None)
+        if pinned:
+            if pinned.get('digest') != digest:
+                raise ValueError('Pinned component manifest differs from its completion marker')
+            pinned_url = f'https://github.com/{repository}/releases/download/{tag}/{pinned_name}'
+            if pinned['browser_download_url'] != pinned_url:
+                raise ValueError('Unexpected pinned component manifest URL')
+            reference['manifestUrl'] = pinned_url
         pending = reference_file.with_suffix('.tmp')
         pending.write_text(json.dumps(reference, sort_keys=True)+'\n')
         pending.replace(reference_file)

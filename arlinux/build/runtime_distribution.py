@@ -215,6 +215,7 @@ def publish_distribution(data, record, final, repository=None, index_name=LEAF_I
     if complete:
         manifest = final.parent/'wine-component.json'
         manifest.write_text(json.dumps(record, sort_keys=True, indent=2)+'\n')
+        upload(manifest, 'component-'+sha(manifest)+'.json', tag, assets)
         upload(manifest, 'component.json', tag, assets, replace=True)
 
 

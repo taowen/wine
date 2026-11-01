@@ -535,6 +535,8 @@ def publish(data, framework):
                 url=f'https://github.com/{repository}/releases/download/{tag}/{name}'))
     manifest = output/'component.json'
     manifest.write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
+    pinned_manifest = output/('component-'+sha(manifest)+'.json')
+    shutil.copyfile(manifest, pinned_manifest)
     # Each component owns one fixed release. Upload verified payloads first;
     # component.json is the final completion marker for this generation.
     existing = subprocess.run(['gh','api',f'repos/{repository}/releases/tags/{tag}'],
@@ -547,7 +549,7 @@ def publish(data, framework):
         assets = {asset['name']:asset for asset in json.loads(existing.stdout)['assets']}
     # Payload names contain their archive digest so an in-flight reader cannot
     # mix generations. Replace the completion marker only after all uploads.
-    for file in [*(output/part['name'] for part in record['parts']), *diagnostic_assets, manifest]:
+    for file in [*(output/part['name'] for part in record['parts']), *diagnostic_assets, pinned_manifest, manifest]:
         if file.name in assets:
             if assets[file.name].get('digest') != 'sha256:'+sha(file):
                 run('gh','release','upload',tag,'--repo',repository,file,'--clobber')
