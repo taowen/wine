@@ -3,12 +3,14 @@
 #include <dlfcn.h>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+#include <filesystem>
 #include <stdexcept>
 #include <vector>
 #include "dxvk_device_requirements.h"
 
 namespace {
-void check(VkResult result) { if (result != VK_SUCCESS) throw std::runtime_error("Vulkan capability query failed"); }
+void check(VkResult result) { if (result != VK_SUCCESS) throw std::runtime_error("Vulkan capability query failed: VkResult " + std::to_string(result)); }
 struct Features {
     VkPhysicalDeviceFeatures2 core{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
     VkPhysicalDeviceVulkan11Features vk11{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES};
@@ -20,7 +22,24 @@ struct Features {
 }
 int main(int argc, char** argv) {
     try {
-        if (argc != 2) throw std::runtime_error("Expected the selected runtime Vulkan loader");
+        if (argc != 3) throw std::runtime_error("Expected runtime Vulkan loader and driver (turnip or system)");
+        const std::string driver = argv[2];
+        if (driver != "turnip" && driver != "system") throw std::runtime_error("Unknown Vulkan driver");
+        auto files = std::filesystem::path(argv[1]).parent_path().parent_path().parent_path().parent_path();
+        auto manifest = files / "share/vulkan/icd.d" / (driver + "_icd.aarch64.json");
+        if (!std::filesystem::is_regular_file(manifest)) throw std::runtime_error("Driver manifest missing: " + driver);
+        // Each candidate runs in its own process. Never reuse a loader which
+        // has already initialized or rejected another ICD.
+        for (auto name : {"VK_ICD_FILENAMES", "VK_DRIVER_FILES", "VK_INSTANCE_LAYERS", "VK_LAYER_PATH",
+                          "VK_ADD_LAYER_PATH", "VK_ADD_DRIVER_FILES", "VK_LOADER_LAYERS_ENABLE"}) unsetenv(name);
+        setenv("VK_DRIVER_FILES", manifest.c_str(), 1);
+        setenv("VK_LOADER_LAYERS_DISABLE", "~implicit~", 1);
+        if (driver == "system") {
+            auto layers = files / "share/vulkan/explicit_layer.d";
+            setenv("VK_LAYER_PATH", layers.c_str(), 1);
+            setenv("VK_INSTANCE_LAYERS", "VK_LAYER_HYBRIS_compat", 1);
+            setenv("HYBRIS_BC_TEXTURES", "missing", 1);
+        }
         void* library = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
         if (!library) throw std::runtime_error(dlerror());
         auto get = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(library, "vkGetInstanceProcAddr"));
@@ -43,6 +62,8 @@ int main(int argc, char** argv) {
         FUNCTION(vkGetPhysicalDeviceFeatures2);
         FUNCTION(vkGetPhysicalDeviceQueueFamilyProperties);
         FUNCTION(vkEnumerateDeviceExtensionProperties);
+        FUNCTION(vkCreateDevice);
+        FUNCTION(vkDestroyDevice);
 #undef FUNCTION
         uint32_t count = 0;
         check(vkEnumeratePhysicalDevices(instance, &count, nullptr));
@@ -57,9 +78,21 @@ int main(int argc, char** argv) {
             vkGetPhysicalDeviceQueueFamilyProperties(device, &queueCount, nullptr);
             std::vector<VkQueueFamilyProperties> queues(queueCount);
             vkGetPhysicalDeviceQueueFamilyProperties(device, &queueCount, queues.data());
-            bool graphics = false;
-            for (const auto& queue : queues) graphics |= queue.queueCount && (queue.queueFlags & VK_QUEUE_GRAPHICS_BIT);
-            if (!graphics) continue;
+            uint32_t graphics = queueCount;
+            for (uint32_t queue = 0; queue < queueCount; ++queue)
+                if (queues[queue].queueCount && (queues[queue].queueFlags & VK_QUEUE_GRAPHICS_BIT)) { graphics = queue; break; }
+            if (graphics == queueCount) continue;
+            float priority = 1.0f;
+            VkDeviceQueueCreateInfo queueInfo{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+            queueInfo.queueFamilyIndex = graphics;
+            queueInfo.queueCount = 1;
+            queueInfo.pQueuePriorities = &priority;
+            VkDeviceCreateInfo deviceInfo{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+            deviceInfo.queueCreateInfoCount = 1;
+            deviceInfo.pQueueCreateInfos = &queueInfo;
+            VkDevice logical;
+            check(vkCreateDevice(device, &deviceInfo, nullptr, &logical));
+            vkDestroyDevice(logical, nullptr);
             legacy |= properties.apiVersion >= VK_API_VERSION_1_1;
             if (properties.apiVersion < dxvk::DxvkRequiredVulkanApiVersion ||
                 properties.limits.maxPushConstantsSize < dxvk::DxvkRequiredPushConstantSize) continue;

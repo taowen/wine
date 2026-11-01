@@ -22,11 +22,22 @@ def ensure_runtime(components, state, run_native_tool):
     endpoints = {row[0]: row for row in rows}
     native = components.get(endpoints.pop('wine-bionic'))
     probe = Path(__file__).parents[3]/'bin/wine-vulkan-info'
-    supported = json.loads(run_native_tool(native, probe,
-        [native/'files/lib/wine/aarch64-unix/libvulkan.so.1']))
-    profile = 'dxvk' if supported['modern'] else 'dxvk-legacy' if supported['legacy'] else None
-    if profile is None:
-        raise RuntimeError('No DXVK profile supports this device hardware')
+    drivers = ['turnip', 'system'] if os.access('/dev/kgsl-3d0', os.R_OK) else ['system']
+    failures = []
+    for driver in drivers:
+        try:
+            supported = json.loads(run_native_tool(native, probe,
+                [native/'files/lib/wine/aarch64-unix/libvulkan.so.1', driver]))
+            profile = 'dxvk' if supported['modern'] else 'dxvk-legacy' if supported['legacy'] else None
+            if profile is None:
+                raise RuntimeError('No DXVK profile supports this driver hardware')
+            break
+        except (RuntimeError, OSError, ValueError) as error:
+            failures.append(f'{driver}: {error}')
+            print(f'Hardware Vulkan driver {driver} unavailable: {error}', flush=True)
+    else:
+        raise RuntimeError('No usable hardware Vulkan driver:\n'+'\n'.join(failures))
+    print('Selected hardware Vulkan driver: '+driver, flush=True)
     print('Selected hardware graphics component: '+profile, flush=True)
     endpoints.pop('dxvk-legacy' if profile == 'dxvk' else 'dxvk')
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -50,6 +61,9 @@ def ensure_runtime(components, state, run_native_tool):
                     if field in target:
                         raise ValueError('Conflicting runtime ownership: '+field)
                     target[field] = content
+            elif key == 'vulkanDriver' and root == native:
+                # The producer supplies drivers; the installer selects one.
+                metadata[key] = driver
             elif key in ('sources', 'compatibility', 'originalSources', 'wineSource', 'wineCommit', 'fexCommit', 'dxvkCommit', 'installerProtocol'):
                 # Source provenance stays with each producer. Independent PE
                 # architectures can legitimately originate from different commits.

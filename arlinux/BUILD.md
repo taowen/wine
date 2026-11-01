@@ -66,6 +66,14 @@ folder, and `run_native_tool(runtime, tool, arguments)` returns stdout using the
 selected native runtime's driver. Paths are guest `Path` values; string arguments
 are passed literally. The installer does not import the Windows launcher.
 
+  The installer probes Turnip first on devices exposing kgsl, then tries the
+  system Vulkan adapter if Turnip fails. Each probe uses a separate process and
+  creates a hardware graphics device before querying DXVK requirements. The
+  selected driver is written to the immutable launch-view metadata; Android
+  honors that selection without overriding it based on the GPU vendor. If both
+  fail, their diagnostics are reported and installation stops. This is independent
+  of the Linux/glibc graphics selection and never selects software rendering.
+
 Launch-view identity hashes installed file contents and effective runtime
 configuration. Installer source, probes, endpoints and source provenance do not
 invalidate a prefix when selected launch files and initialization are unchanged.
