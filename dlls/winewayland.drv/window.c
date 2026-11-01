@@ -630,7 +630,7 @@ static void wayland_configure_window(HWND hwnd)
     BOOL restoring_from_minimize = FALSE;
     BOOL restoring_from_maximize;
     struct wayland_win_data *data;
-    RECT rect, surface_rect;
+    RECT rect, surface_rect, frame, restore_rect = {0};
 
     if (!(data = wayland_win_data_get(hwnd))) return;
     if (!(surface = data->wayland_surface))
@@ -657,6 +657,20 @@ static void wayland_configure_window(HWND hwnd)
     memset(&surface->requested, 0, sizeof(surface->requested));
 
     state = surface->processing.state;
+    /* A compositor fullscreen toggle does not change Win32's placement style.
+     * Preserve its pre-fullscreen geometry independently of WS_MAXIMIZE. */
+    if ((state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
+        !(surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
+        !data->is_fullscreen)
+        data->fullscreen_restore_rect = data->rects.window;
+    else if (!(state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN) &&
+             (surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_FULLSCREEN))
+    {
+        if (!(state & (WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED |
+                       WAYLAND_SURFACE_CONFIG_STATE_TILED)))
+            restore_rect = data->fullscreen_restore_rect;
+        SetRectEmpty(&data->fullscreen_restore_rect);
+    }
     restoring_from_maximize =
         (surface->current.state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) &&
         !(state & (WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED |
@@ -735,12 +749,16 @@ static void wayland_configure_window(HWND hwnd)
     /* XDG configures the visible surface, not the Win32 outer frame. Restore
      * the hidden frame extents before resizing the HWND. Otherwise every
      * configure subtracts the caption/borders again and shrinks the client. */
+    SetRect(&frame, data->rects.window.left - data->rects.visible.left,
+            data->rects.window.top - data->rects.visible.top,
+            data->rects.window.right - data->rects.visible.right,
+            data->rects.window.bottom - data->rects.visible.bottom);
     if (width && height)
     {
-        rect.left += data->rects.window.left - data->rects.visible.left;
-        rect.top += data->rects.window.top - data->rects.visible.top;
-        rect.right += data->rects.window.right - data->rects.visible.right;
-        rect.bottom += data->rects.window.bottom - data->rects.visible.bottom;
+        rect.left += frame.left;
+        rect.top += frame.top;
+        rect.right += frame.right;
+        rect.bottom += frame.bottom;
     }
     OffsetRect(&rect, data->rects.visible.left, data->rects.visible.top);
 
@@ -753,6 +771,12 @@ static void wayland_configure_window(HWND hwnd)
 
     flags |= SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOMOVE;
     if (rect.left == rect.right || rect.bottom == rect.top) flags |= SWP_NOSIZE;
+
+    if (!IsRectEmpty(&restore_rect))
+    {
+        rect = restore_rect;
+        flags &= ~(SWP_NOSIZE | SWP_NOMOVE);
+    }
 
     style = NtUserGetWindowLongW(hwnd, GWL_STYLE);
     if ((state & WAYLAND_SURFACE_CONFIG_STATE_MAXIMIZED) && !(style & WS_MAXIMIZE))
@@ -788,11 +812,18 @@ static void wayland_configure_window(HWND hwnd)
         HMONITOR handle = NtUserMonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
         if (handle && NtUserGetMonitorInfo(handle, &monitor))
         {
-            int x = max(monitor.rcMonitor.left, min(rect.left, monitor.rcMonitor.right - (rect.right - rect.left)));
-            int y = max(monitor.rcMonitor.top, min(rect.top, monitor.rcMonitor.bottom - (rect.bottom - rect.top)));
-            if (x != rect.left || y != rect.top)
+            RECT visible = {rect.left - frame.left, rect.top - frame.top,
+                            rect.right - frame.right, rect.bottom - frame.bottom};
+            int x = max(monitor.rcMonitor.left, min(visible.left, monitor.rcMonitor.right -
+                                                  (visible.right - visible.left)));
+            int y = max(monitor.rcMonitor.top, min(visible.top, monitor.rcMonitor.bottom -
+                                                 (visible.bottom - visible.top)));
+            /* Hidden Win32 borders may extend past the monitor. Constrain the
+             * visible surface, or its inset prevents Win32 from recognizing
+             * fullscreen and the next position update unsets the XDG state. */
+            if (x != visible.left || y != visible.top)
             {
-                OffsetRect(&rect, x - rect.left, y - rect.top);
+                OffsetRect(&rect, x - visible.left, y - visible.top);
                 flags &= ~SWP_NOMOVE;
             }
         }
