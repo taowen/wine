@@ -522,7 +522,7 @@ BOOL WAYLAND_WindowPosChanging(HWND hwnd, UINT swp_flags, BOOL shaped, const str
 
 static pthread_mutex_t activation_mutex = PTHREAD_MUTEX_INITIALIZER;
 static char *provided_activation_token;
-static ULONGLONG provided_activation_time;
+static DWORD provided_activation_time;
 
 static void activation_token_done(void *context, struct xdg_activation_token_v1 *token,
                                   const char *value)
@@ -572,7 +572,7 @@ void WAYLAND_ActivateWindow(HWND hwnd, HWND previous)
         pthread_mutex_lock(&activation_mutex);
         provided = provided_activation_token;
         provided_activation_token = NULL;
-        if (GetTickCount64() - provided_activation_time > 5000)
+        if (NtGetTickCount() - provided_activation_time > 5000)
         {
             free(provided);
             provided = NULL;
@@ -913,7 +913,7 @@ static void provide_activation_context(HANDLE section)
     pthread_mutex_lock(&activation_mutex);
     free(provided_activation_token);
     provided_activation_token = token;
-    provided_activation_time = GetTickCount64();
+    provided_activation_time = NtGetTickCount();
     pthread_mutex_unlock(&activation_mutex);
 }
 
