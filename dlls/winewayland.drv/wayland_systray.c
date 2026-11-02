@@ -316,6 +316,9 @@ static void notify_owner(struct tray_icon *icon, UINT message, int x, int y)
 
 static void click_systray(struct tray_icon *icon, UINT down, UINT up, int x, int y)
 {
+    x += NtUserGetSystemMetrics(SM_XVIRTUALSCREEN);
+    y += NtUserGetSystemMetrics(SM_YVIRTUALSCREEN);
+    NtUserSetCursorPos(x, y);
     notify_owner(icon, down, x, y);
     notify_owner(icon, up, x, y);
     /* Match Explorer's versioned Shell_NotifyIcon callback contract. */
@@ -835,6 +838,11 @@ static void init_dbus_functions(void)
 
 static BOOL load_dbus_functions(void)
 {
+    if (!process_wayland.zwlr_layer_shell_v1)
+    {
+        TRACE("zwlr_layer_shell_v1 missing, disabling DBus SNI tray integration\n");
+        return FALSE;
+    }
     pthread_once(&dbus_init_once, init_dbus_functions);
     return dbus_available;
 }

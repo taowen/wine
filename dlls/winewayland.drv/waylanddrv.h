@@ -39,6 +39,7 @@
 #include "xdg-activation-v1-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "wlr-data-control-unstable-v1-client-protocol.h"
+#include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #include "xdg-toplevel-icon-v1-client-protocol.h"
 #include "pointer-warp-v1-client-protocol.h"
 #include "alpha-modifier-v1-client-protocol.h"
@@ -56,6 +57,7 @@
 
 /* We only use 4 byte formats. */
 #define WINEWAYLAND_BYTES_PER_PIXEL 4
+#define POPUPMENU_CLASS_ATOM MAKEINTATOM(32768)
 
 /**********************************************************************
  *          Globals
@@ -75,6 +77,7 @@ enum wayland_window_message
     WM_WAYLAND_SET_FOREGROUND,
     /* WM_WINE_FIRST_DRIVER_MSG + 3 belongs to WM_WINE_HWND_GDI_FRAME. */
     WM_WAYLAND_DECORATION_CHANGED = WM_WINE_FIRST_DRIVER_MSG + 4,
+    WM_WAYLAND_CANCEL_UNFOCUSED,
 };
 
 enum wayland_surface_config_state
@@ -90,6 +93,7 @@ enum wayland_surface_role
     WAYLAND_SURFACE_ROLE_NONE,
     WAYLAND_SURFACE_ROLE_TOPLEVEL,
     WAYLAND_SURFACE_ROLE_SUBSURFACE,
+    WAYLAND_SURFACE_ROLE_LAYER,
 };
 
 struct wayland_keyboard
@@ -188,6 +192,7 @@ struct wayland
     struct zwp_relative_pointer_manager_v1 *zwp_relative_pointer_manager_v1;
     struct zwp_text_input_manager_v3 *zwp_text_input_manager_v3;
     struct zwlr_data_control_manager_v1 *zwlr_data_control_manager_v1;
+    struct zwlr_layer_shell_v1 *zwlr_layer_shell_v1;
     struct wl_data_device_manager *wl_data_device_manager;
     struct xdg_toplevel_icon_manager_v1 *xdg_toplevel_icon_manager_v1;
     struct wp_cursor_shape_manager_v1 *wp_cursor_shape_manager_v1;
@@ -224,6 +229,7 @@ struct wayland_output_state
     char *name;
     int logical_x, logical_y;
     int logical_w, logical_h;
+    int transform;
 };
 
 struct wayland_output
@@ -308,6 +314,10 @@ struct wayland_surface
         };
         struct
         {
+            struct zwlr_layer_surface_v1 *zwlr_layer_surface_v1;
+        };
+        struct
+        {
             struct wl_subsurface *wl_subsurface;
             HWND owner_hwnd;
         };
@@ -352,6 +362,7 @@ void wayland_hwnd_gdi_clear(struct wayland_surface *surface);
 void wayland_surface_make_toplevel(struct wayland_surface *surface);
 void wayland_surface_make_subsurface(struct wayland_surface *surface,
                                      struct wayland_surface *parent);
+void wayland_surface_make_layer(struct wayland_surface *surface);
 void wayland_surface_clear_role(struct wayland_surface *surface);
 void wayland_surface_attach_shm(struct wayland_surface *surface,
                                 struct wayland_shm_buffer *shm_buffer,
@@ -363,6 +374,7 @@ RECT map_rect_to_surface(struct wayland_surface *surface, RECT rect);
 POINT map_point_to_surface(struct wayland_surface *surface, POINT point);
 RECT map_rect_from_surface(struct wayland_surface *surface, RECT rect);
 POINT map_point_from_surface(struct wayland_surface *surface, POINT point);
+RECT map_rect_to_output(struct wayland_surface *surface, RECT rect);
 void wayland_client_surface_attach(struct wayland_client_surface *client, HWND toplevel, const RECT *rect);
 void wayland_surface_ensure_contents(struct wayland_surface *surface);
 void wayland_surface_set_title(struct wayland_surface *surface, LPCWSTR title);
@@ -440,6 +452,7 @@ void wayland_window_init(void);
 
 void wayland_keyboard_init(struct wl_keyboard *wl_keyboard);
 void wayland_keyboard_deinit(void);
+void wayland_keyboard_release_all_keys(HWND hwnd);
 HWND wayland_keyboard_get_focused_hwnd(void);
 const KBDTABLES *WAYLAND_KbdLayerDescriptor(HKL hkl);
 void WAYLAND_ReleaseKbdTables(const KBDTABLES *);
