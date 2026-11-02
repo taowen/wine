@@ -78,6 +78,7 @@ enum wayland_window_message
     /* WM_WINE_FIRST_DRIVER_MSG + 3 belongs to WM_WINE_HWND_GDI_FRAME. */
     WM_WAYLAND_DECORATION_CHANGED = WM_WINE_FIRST_DRIVER_MSG + 4,
     WM_WAYLAND_CANCEL_UNFOCUSED,
+    WM_WAYLAND_TRAY_ACTIVATE,
 };
 
 enum wayland_surface_config_state

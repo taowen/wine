@@ -127,6 +127,7 @@ struct tray_icon
     HWND owner;
     UINT id;
     UINT callback_message;
+    char *activation_token;
     char tiptext[MAX_TIPTEXT_UTF8_BYTES];
     UINT version;
     BOOL hidden;
@@ -166,6 +167,9 @@ static const char *introspection_xml =
     "    <method name=\"ContextMenu\">\n"
     "      <arg name=\"x\" type=\"i\" direction=\"in\"/>\n"
     "      <arg name=\"y\" type=\"i\" direction=\"in\"/>\n"
+    "    </method>\n"
+    "    <method name=\"ProvideXdgActivationToken\">\n"
+    "      <arg name=\"token\" type=\"s\" direction=\"in\"/>\n"
     "    </method>\n"
     "    <method name=\"Activate\">\n"
     "      <arg name=\"x\" type=\"i\" direction=\"in\"/>\n"
@@ -314,6 +318,42 @@ static void notify_owner(struct tray_icon *icon, UINT message, int x, int y)
     NtUserPostMessage(icon->owner, icon->callback_message, wparam, lparam);
 }
 
+/* A tray callback runs in another Wine process. Transfer the opaque token in
+ * a read-only NT section, then apply it after that process handles the callback.
+ * The application, not the host, chooses its foreground window. */
+static void activate_after_callback(struct tray_icon *icon)
+{
+    HANDLE section = NULL, process = NULL, remote = NULL;
+    OBJECT_ATTRIBUTES attr;
+    CLIENT_ID client = {0};
+    LARGE_INTEGER size;
+    SIZE_T view_size = 0;
+    void *view = NULL;
+    DWORD pid = 0;
+
+    if (!icon->activation_token) return;
+    NtUserGetWindowThread(icon->owner, &pid);
+    client.UniqueProcess = ULongToHandle(pid);
+    InitializeObjectAttributes(&attr, NULL, 0, NULL, NULL);
+    size.QuadPart = strlen(icon->activation_token) + 1;
+    if (NtCreateSection(&section, SECTION_MAP_READ | SECTION_MAP_WRITE, NULL,
+                        &size, PAGE_READWRITE, SEC_COMMIT, NULL)) goto done;
+    if (NtMapViewOfSection(section, NtCurrentProcess(), &view, 0, 0, NULL,
+                           &view_size, ViewUnmap, 0, PAGE_READWRITE)) goto done;
+    memcpy(view, icon->activation_token, size.QuadPart);
+    NtUnmapViewOfSection(NtCurrentProcess(), view);
+    if (NtOpenProcess(&process, PROCESS_DUP_HANDLE, &attr, &client)) goto done;
+    if (NtDuplicateObject(NtCurrentProcess(), section, process, &remote,
+                          SECTION_MAP_READ, 0, 0)) goto done;
+    if (!NtUserPostMessage(icon->owner, WM_WAYLAND_TRAY_ACTIVATE, (WPARAM)remote, 0))
+        NtDuplicateObject(process, remote, NULL, NULL, 0, 0, DUPLICATE_CLOSE_SOURCE);
+done:
+    if (process) NtClose(process);
+    if (section) NtClose(section);
+    free(icon->activation_token);
+    icon->activation_token = NULL;
+}
+
 static void click_systray(struct tray_icon *icon, UINT down, UINT up, int x, int y)
 {
     x += NtUserGetSystemMetrics(SM_XVIRTUALSCREEN);
@@ -327,6 +367,7 @@ static void click_systray(struct tray_icon *icon, UINT down, UINT up, int x, int
         if (up == WM_LBUTTONUP) notify_owner(icon, NIN_SELECT, x, y);
         if (up == WM_RBUTTONUP) notify_owner(icon, WM_CONTEXTMENU, x, y);
     }
+    if (up == WM_LBUTTONUP) activate_after_callback(icon);
 }
 
 static DBusHandlerResult dbus_filter(DBusConnection *conn, DBusMessage *msg, void *user_data)
@@ -471,6 +512,23 @@ static DBusHandlerResult dbus_filter(DBusConnection *conn, DBusMessage *msg, voi
     {
         dbus_int32_t x, y;
         DBusError error;
+        if (strcmp(member, "ProvideXdgActivationToken") == 0)
+        {
+            const char *token;
+            p_dbus_error_init(&error);
+            if (p_dbus_message_get_args(msg, &error, DBUS_TYPE_STRING, &token, DBUS_TYPE_INVALID))
+            {
+                free(icon->activation_token);
+                icon->activation_token = strdup(token);
+            }
+            else
+            {
+                WARN("invalid activation token: %s\n", debugstr_a(error.message));
+                p_dbus_error_free(&error);
+            }
+            ret = DBUS_HANDLER_RESULT_HANDLED;
+            goto done;
+        }
         if (strcmp(member, "Scroll") == 0)
         {
             ret = DBUS_HANDLER_RESULT_HANDLED;
@@ -736,6 +794,7 @@ static void delete_icon(struct tray_icon *icon)
     list_remove(&icon->entry);
     if (icon->pixels)
         free(icon->pixels);
+    free(icon->activation_token);
     free(icon);
 }
 

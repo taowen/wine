@@ -872,10 +872,47 @@ BOOL WAYLAND_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style,
     return TRUE;
 }
 
+/* Called after the application's notification callback. Do not guess a window
+ * from the icon owner (often a hidden message window), PID or title. */
+static void activate_tray_foreground(HANDLE section)
+{
+    void *view = NULL;
+    SIZE_T size = 0;
+    HWND hwnd = NtUserGetForegroundWindow();
+    struct wayland_win_data *data;
+    DWORD pid = 0, style;
+
+    if (NtMapViewOfSection(section, NtCurrentProcess(), &view, 0, 0, NULL,
+                           &size, ViewUnmap, 0, PAGE_READONLY))
+    {
+        NtClose(section);
+        return;
+    }
+    NtClose(section);
+    NtUserGetWindowThread(hwnd, &pid);
+    style = NtUserGetWindowLongW(hwnd, GWL_STYLE);
+    if (process_wayland.xdg_activation_v1 && pid == GetCurrentProcessId() &&
+        (style & (WS_VISIBLE | WS_MINIMIZE | WS_DISABLED)) == WS_VISIBLE &&
+        memchr(view, 0, size) && (data = wayland_win_data_get(hwnd)))
+    {
+        if (data->wayland_surface && wayland_surface_is_toplevel(data->wayland_surface))
+        {
+            xdg_activation_v1_activate(process_wayland.xdg_activation_v1, view,
+                                      data->wayland_surface->wl_surface);
+            wl_display_flush(process_wayland.wl_display);
+        }
+        wayland_win_data_release(data);
+    }
+    NtUnmapViewOfSection(NtCurrentProcess(), view);
+}
+
 LRESULT WAYLAND_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg)
     {
+    case WM_WAYLAND_TRAY_ACTIVATE:
+        activate_tray_foreground((HANDLE)wp);
+        return 0;
     case WM_WAYLAND_INIT_DISPLAY_DEVICES:
         NtUserCallNoParam(NtUserCallNoParam_DisplayModeChanged);
         return 0;
