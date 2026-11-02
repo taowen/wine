@@ -1235,7 +1235,7 @@ void initialize_systray( BOOL arg_using_root, BOOL arg_enable_shell, BOOL arg_sh
     {
         show_systray = TRUE;
         enable_taskbar = FALSE;
-        enable_dock = FALSE;
+        enable_dock = TRUE;
     }
     else
     {
