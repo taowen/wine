@@ -96,6 +96,19 @@ renegotiate on the same toplevel. Compositors that decline server decorations
 retain Wine's ordinary client frame. Window close remains the standard
 `xdg_toplevel.close` to `SC_CLOSE` path, not process termination.
 
+The native Wayland driver publishes Windows tray icons as standard
+StatusNotifierItems on the host-provided desktop session bus. The desktop owns
+its SNI watcher and presentation; Wine retains Explorer fallback when no watcher
+is available. The Bionic runtime includes only the D-Bus client library, not a
+second daemon. Integration follows [Wine MR11500](https://gitlab.winehq.org/wine/wine/-/merge_requests/11500)
+by Harrison Short, with Explorer-compatible versioned callbacks and icon state.
+Layer-shell is used for native Win32 popup menus so their hidden owner need not
+provide a visible parent surface; ordinary application/game windows retain their
+xdg-toplevel/subsurface roles. Balloon notifications (`NIF_INFO`) are not supported
+by this SNI implementation. Use the tray sample in the diagnostic product to
+verify registration, hide/restore, native context menu, removal and relaunch in
+each desktop presentation before promotion.
+
 The modern DXVK fork carries upstream incremental `Present1` support, including dirty
 rectangles, scrolling and complete-frame preservation across sequential buffers.
 Its offscreen composition path applies the same operations before rotating

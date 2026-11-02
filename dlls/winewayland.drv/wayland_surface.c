@@ -567,7 +567,21 @@ err:
 static void layer_surface_handle_configure(void *data, struct zwlr_layer_surface_v1 *layer_surface,
                                            uint32_t serial, uint32_t width, uint32_t height)
 {
-    zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
+    HWND hwnd = data;
+    struct wayland_win_data *win_data;
+    struct wayland_surface *surface;
+    BOOL initial = FALSE;
+
+    if (!(win_data = wayland_win_data_get(hwnd))) return;
+    if ((surface = win_data->wayland_surface) && surface->zwlr_layer_surface_v1 == layer_surface)
+    {
+        zwlr_layer_surface_v1_ack_configure(layer_surface, serial);
+        initial = !surface->current.serial;
+        surface->current.serial = serial;
+    }
+    wayland_win_data_release(win_data);
+    /* Use the same deferred surface flush as the xdg initial-configure path. */
+    if (initial) NtUserExposeWindowSurface(hwnd, 0, NULL);
 }
 
 static void layer_surface_handle_closed(void *data, struct zwlr_layer_surface_v1 *layer_surface)
@@ -1066,6 +1080,7 @@ BOOL wayland_surface_reconfigure(struct wayland_surface *surface)
         break;
     case WAYLAND_SURFACE_ROLE_LAYER:
         if (!surface->zwlr_layer_surface_v1) break;
+        if (!surface->current.serial) return FALSE;
         wayland_surface_reconfigure_layer(surface,
                                           map_rect_to_output(surface, surface->window.rect));
         break;

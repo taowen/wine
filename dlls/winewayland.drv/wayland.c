@@ -197,7 +197,7 @@ static void registry_handle_global(void *data, struct wl_registry *registry,
     else if (strcmp(interface, "zwlr_layer_shell_v1") == 0)
     {
         process_wayland.zwlr_layer_shell_v1 =
-            wl_registry_bind(registry, id, &zwlr_layer_shell_v1_interface, 4);
+            wl_registry_bind(registry, id, &zwlr_layer_shell_v1_interface, min(version, 4));
     }
     else if (strcmp(interface, "wl_data_device_manager") == 0)
     {
