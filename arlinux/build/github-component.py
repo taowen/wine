@@ -356,7 +356,8 @@ def build_wine_diagnostics(data, framework):
         framework/'arlinux/build/windows-debug.sh', framework/'arlinux/windows-debug.py',
         framework/'arlinux/components/windows-integration/diagnostics/exception-observer.c',
         framework/'arlinux/components/windows-integration/diagnostics/exception-observer-probe.c',
-        framework/'arlinux/components/windows-integration/diagnostics/message-wait.c')}
+        framework/'arlinux/components/windows-integration/diagnostics/message-wait.c',
+        framework/'arlinux/components/windows-integration/diagnostics/tray-sample.c')}
     inputs['toolchainLock'] = sha(framework/'arlinux/build/github-inputs.json')
     inputs['engine'] = data['sourceInputs']['recipeSha256']
     inputs['compiler'] = inventory(Path(tools['mingw'])/'aarch64-w64-mingw32-clang')
