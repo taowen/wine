@@ -94,7 +94,7 @@ DBUS_FUNCS;
     PROP(ItemIsMenu, reply_variant_bool(iter, 0)) \
     PROP(OverlayIconName, reply_variant_string(iter, "")) \
     PROP(OverlayIconPixmap, reply_variant_pixmap(iter, 0, 0, NULL)) \
-    PROP(Status, reply_variant_string(iter, "Active")) \
+    PROP(Status, reply_variant_string(iter, icon->hidden ? "Passive" : "Active")) \
     PROP(Title, reply_variant_string(iter, icon->tiptext)) \
     PROP(ToolTip, reply_variant_tooltip(iter, icon->tiptext)) \
     PROP(WindowId, reply_variant_int32(iter, HandleToLong(icon->owner)))
@@ -129,6 +129,7 @@ struct tray_icon
     UINT callback_message;
     char tiptext[MAX_TIPTEXT_UTF8_BYTES];
     UINT version;
+    BOOL hidden;
     char object_path[64];
     BYTE *pixels;
     int width, height;
@@ -301,18 +302,27 @@ static NTSTATUS reply_property(const char *prop_name, DBusMessageIter *iter, str
     return STATUS_NOT_FOUND;
 }
 
-static void click_systray(struct tray_icon *icon, UINT down, UINT up, int x, int y)
+static void notify_owner(struct tray_icon *icon, UINT message, int x, int y)
 {
+    WPARAM wparam = icon->id;
+    LPARAM lparam = message;
     if (icon->version >= NOTIFYICON_VERSION_4)
     {
-        WPARAM wparam = MAKEWPARAM(x, y);
-        NtUserPostMessage(icon->owner, icon->callback_message, wparam, MAKELPARAM(down, icon->id));
-        NtUserPostMessage(icon->owner, icon->callback_message, wparam, MAKELPARAM(up, icon->id));
+        wparam = MAKEWPARAM(x, y);
+        lparam = MAKELPARAM(message, icon->id);
     }
-    else
+    NtUserPostMessage(icon->owner, icon->callback_message, wparam, lparam);
+}
+
+static void click_systray(struct tray_icon *icon, UINT down, UINT up, int x, int y)
+{
+    notify_owner(icon, down, x, y);
+    notify_owner(icon, up, x, y);
+    /* Match Explorer's versioned Shell_NotifyIcon callback contract. */
+    if (icon->version > 0)
     {
-        NtUserPostMessage(icon->owner, icon->callback_message, icon->id, down);
-        NtUserPostMessage(icon->owner, icon->callback_message, icon->id, up);
+        if (up == WM_LBUTTONUP) notify_owner(icon, NIN_SELECT, x, y);
+        if (up == WM_RBUTTONUP) notify_owner(icon, WM_CONTEXTMENU, x, y);
     }
 }
 
@@ -460,7 +470,6 @@ static DBusHandlerResult dbus_filter(DBusConnection *conn, DBusMessage *msg, voi
         DBusError error;
         if (strcmp(member, "Scroll") == 0)
         {
-            reply = p_dbus_message_new_method_return(msg);
             ret = DBUS_HANDLER_RESULT_HANDLED;
             goto done;
         }
@@ -474,7 +483,6 @@ static DBusHandlerResult dbus_filter(DBusConnection *conn, DBusMessage *msg, voi
                 click_systray(icon, WM_LBUTTONDOWN, WM_LBUTTONUP, x, y);
             else if (strcmp(member, "SecondaryActivate") == 0)
                 click_systray(icon, WM_MBUTTONDOWN, WM_MBUTTONUP, x, y);
-            reply = p_dbus_message_new_method_return(msg);
         }
         else
         {
@@ -727,6 +735,19 @@ static void modify_icon(struct tray_icon *icon, NOTIFYICONDATAW *nid, BYTE *pixe
     BOOL wake = FALSE;
     if (nid->uFlags & NIF_MESSAGE)
         icon->callback_message = nid->uCallbackMessage;
+    if ((nid->uFlags & NIF_STATE) && (nid->dwStateMask & NIS_HIDDEN))
+    {
+        icon->hidden = !!(nid->dwState & NIS_HIDDEN);
+        if (connection && (sig = p_dbus_message_new_signal(icon->object_path,
+                "org.kde.StatusNotifierItem", "NewStatus")))
+        {
+            const char *status = icon->hidden ? "Passive" : "Active";
+            p_dbus_message_append_args(sig, DBUS_TYPE_STRING, &status, DBUS_TYPE_INVALID);
+            p_dbus_connection_send(connection, sig, NULL);
+            p_dbus_message_unref(sig);
+        }
+        wake = TRUE;
+    }
     if (nid->uFlags & NIF_TIP)
     {
         DWORD max_chars = (nid->cbSize == NOTIFYICONDATAW_V1_SIZE) ? 64 : MAX_TIPTEXT_WCHAR;
@@ -965,7 +986,8 @@ LRESULT WAYLAND_NotifyIcon(HWND hwnd, UINT msg, NOTIFYICONDATAW *data)
         }
         break;
     default:
-        return -1;
+        ret = -1;
+        break;
     }
     pthread_mutex_unlock(&systray_mutex);
     if (pixels)
