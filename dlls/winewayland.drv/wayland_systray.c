@@ -677,6 +677,14 @@ static void register_icon(struct tray_icon *icon)
         p_dbus_connection_send(connection, msg, NULL);
         p_dbus_message_unref(msg);
     }
+    /* Reusing an object path must reactivate an item previously made passive. */
+    if ((msg = p_dbus_message_new_signal(icon->object_path, "org.kde.StatusNotifierItem", "NewStatus")))
+    {
+        const char *status = icon->hidden ? "Passive" : "Active";
+        p_dbus_message_append_args(msg, DBUS_TYPE_STRING, &status, DBUS_TYPE_INVALID);
+        p_dbus_connection_send(connection, msg, NULL);
+        p_dbus_message_unref(msg);
+    }
 }
 
 static struct tray_icon *get_icon(HWND owner, UINT id)
