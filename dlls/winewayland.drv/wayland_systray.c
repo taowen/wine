@@ -44,6 +44,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(systray);
 #ifdef SONAME_LIBDBUS_1
 #define DBUS_FUNCS \
     DO_FUNC(dbus_bus_get_private); \
+    DO_FUNC(dbus_bus_name_has_owner); \
     DO_FUNC(dbus_connection_close); \
     DO_FUNC(dbus_connection_dispatch); \
     DO_FUNC(dbus_connection_get_unix_fd); \
@@ -791,7 +792,22 @@ static void init_dbus_functions(void)
     DBUS_FUNCS;
 #undef DO_FUNC
     systray_vtable.message_function = dbus_filter;
-    dbus_available = p_dbus_threads_init_default();
+    if (p_dbus_threads_init_default() && getenv("DBUS_SESSION_BUS_ADDRESS"))
+    {
+        DBusError error;
+        DBusConnection *probe;
+        p_dbus_error_init(&error);
+        probe = p_dbus_bus_get_private(DBUS_BUS_SESSION, &error);
+        if (probe)
+        {
+            /* A bus without a tray host cannot make icons reachable. Keep
+             * Explorer's normal standalone tray for that desktop session. */
+            dbus_available = p_dbus_bus_name_has_owner(probe, "org.kde.StatusNotifierWatcher", &error);
+            p_dbus_connection_close(probe);
+            p_dbus_connection_unref(probe);
+        }
+        p_dbus_error_free(&error);
+    }
 }
 
 static BOOL load_dbus_functions(void)
