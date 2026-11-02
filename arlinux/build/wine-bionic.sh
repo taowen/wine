@@ -47,6 +47,7 @@ export WAYLAND_CLIENT_CFLAGS="-I$prefix/include" WAYLAND_CLIENT_LIBS="-L$prefix/
 export WAYLAND_EGL_CFLAGS="-I$prefix/include" WAYLAND_EGL_LIBS="-L$prefix/lib -lwayland-egl"
 export XKBCOMMON_CFLAGS="-I$prefix/include" XKBCOMMON_LIBS="-L$prefix/lib -lxkbcommon"
 export XKBREGISTRY_CFLAGS="-I$prefix/include" XKBREGISTRY_LIBS="-L$prefix/lib -lxkbregistry"
+export DBUS_CFLAGS="-I$prefix/include/dbus-1.0 -I$prefix/lib/dbus-1.0/include" DBUS_LIBS="-L$prefix/lib -ldbus-1"
 export EGL_CFLAGS="-I$graphics/include" EGL_LIBS="-L$graphics/lib -lEGL"
 export FREETYPE_CFLAGS="-I$prefix/include/freetype2" FREETYPE_LIBS="-L$prefix/lib -lfreetype"
 export FONTCONFIG_CFLAGS="-I$prefix/include" FONTCONFIG_LIBS="-L$prefix/lib -lfontconfig"
@@ -60,7 +61,7 @@ export PKG_CONFIG_LIBDIR=/nonexistent GRADLE=/bin/true
         --enable-win64 --enable-archs=arm64ec,aarch64,i386,x86_64 --with-wine-tools="$tools_dir" \
         --disable-tests --without-x --without-xinput --without-xinput2 --with-freetype --with-fontconfig --without-xshm \
         --with-wayland --disable-winex11.drv --without-unwind --with-gnutls --without-gstreamer \
-        --without-alsa --with-pulse --without-dbus "$opengl_arg" --with-vulkan \
+        --without-alsa --with-pulse --with-dbus "$opengl_arg" --with-vulkan \
         --prefix=/arlinux-wine --exec-prefix=/arlinux-wine
 ) > "$stage/configure.log" 2>&1
 if [[ "$opengl_arg" == --with-opengl ]]; then
