@@ -460,6 +460,7 @@ static DBusHandlerResult dbus_filter(DBusConnection *conn, DBusMessage *msg, voi
         DBusError error;
         if (strcmp(member, "Scroll") == 0)
         {
+            reply = p_dbus_message_new_method_return(msg);
             ret = DBUS_HANDLER_RESULT_HANDLED;
             goto done;
         }
@@ -473,6 +474,7 @@ static DBusHandlerResult dbus_filter(DBusConnection *conn, DBusMessage *msg, voi
                 click_systray(icon, WM_LBUTTONDOWN, WM_LBUTTONUP, x, y);
             else if (strcmp(member, "SecondaryActivate") == 0)
                 click_systray(icon, WM_MBUTTONDOWN, WM_MBUTTONUP, x, y);
+            reply = p_dbus_message_new_method_return(msg);
         }
         else
         {
