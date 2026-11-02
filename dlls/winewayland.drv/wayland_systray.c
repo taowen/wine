@@ -318,10 +318,9 @@ static void notify_owner(struct tray_icon *icon, UINT message, int x, int y)
     NtUserPostMessage(icon->owner, icon->callback_message, wparam, lparam);
 }
 
-/* A tray callback runs in another Wine process. Transfer the opaque token in
- * a read-only NT section, then apply it after that process handles the callback.
- * The application, not the host, chooses its foreground window. */
-static void activate_after_callback(struct tray_icon *icon)
+/* Transfer the user activation context before delivering the tray callback.
+ * The receiving application still decides whether and which window to activate. */
+static void provide_activation_context(struct tray_icon *icon)
 {
     HANDLE section = NULL, process = NULL, remote = NULL;
     OBJECT_ATTRIBUTES attr;
@@ -345,7 +344,7 @@ static void activate_after_callback(struct tray_icon *icon)
     if (NtOpenProcess(&process, PROCESS_DUP_HANDLE, &attr, &client)) goto done;
     if (NtDuplicateObject(NtCurrentProcess(), section, process, &remote,
                           SECTION_MAP_READ, 0, 0)) goto done;
-    if (!NtUserPostMessage(icon->owner, WM_WAYLAND_TRAY_ACTIVATE, (WPARAM)remote, 0))
+    if (!NtUserPostMessage(icon->owner, WM_WAYLAND_ACTIVATION_CONTEXT, (WPARAM)remote, 0))
         NtDuplicateObject(process, remote, NULL, NULL, 0, 0, DUPLICATE_CLOSE_SOURCE);
 done:
     if (process) NtClose(process);
@@ -356,6 +355,7 @@ done:
 
 static void click_systray(struct tray_icon *icon, UINT down, UINT up, int x, int y)
 {
+    provide_activation_context(icon);
     x += NtUserGetSystemMetrics(SM_XVIRTUALSCREEN);
     y += NtUserGetSystemMetrics(SM_YVIRTUALSCREEN);
     NtUserSetCursorPos(x, y);
@@ -367,7 +367,6 @@ static void click_systray(struct tray_icon *icon, UINT down, UINT up, int x, int
         if (up == WM_LBUTTONUP) notify_owner(icon, NIN_SELECT, x, y);
         if (up == WM_RBUTTONUP) notify_owner(icon, WM_CONTEXTMENU, x, y);
     }
-    if (up == WM_LBUTTONUP) activate_after_callback(icon);
 }
 
 static DBusHandlerResult dbus_filter(DBusConnection *conn, DBusMessage *msg, void *user_data)

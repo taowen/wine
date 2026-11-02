@@ -104,7 +104,10 @@ second daemon. Integration follows [Wine MR11500](https://gitlab.winehq.org/wine
 by Harrison Short, with Explorer-compatible versioned callbacks and icon state.
 Layer-shell is used for native Win32 popup menus so their hidden owner need not
 provide a visible parent surface; ordinary application/game windows retain their
-xdg-toplevel/subsurface roles. Balloon notifications (`NIF_INFO`) are not supported
+xdg-toplevel/subsurface roles. SNI hosts pass `ProvideXdgActivationToken` before
+`Activate`; Wine applies the one-use Wayland token to the foreground window
+chosen by the notification callback. No desktop-specific focus rules are needed.
+Balloon notifications (`NIF_INFO`) are not supported
 by this SNI implementation. Use the tray sample in the diagnostic product to
 verify registration, hide/restore, native context menu, removal and relaunch in
 each desktop presentation before promotion.
@@ -254,11 +257,11 @@ changes require no APK rebuild or latest publication. A protocol change requires
 a new APK and fresh distribution through the same canonical entry.
 
 Complete install, interaction, close, reopen and task stop on the device. Retain
-APK/source hashes, per-producer receipts, process maps, screenshots and logs in
-private validation evidence. Debug receiver maintenance and authentication
+APK/source hashes and per-producer identities in the conversation; inspect
+process maps, screenshots and logs in memory without keeping validation files. Debug receiver maintenance and authentication
 commands are maintained only in the [Android diagnostic guide](https://github.com/taowen/arlinux/blob/main/tools/diagnostics/README.md#debug-yibu-instance-maintenance).
-Release builds expose no candidate receiver. Do not treat compilation as device
-acceptance. Preserve the tray as an independent window selected in Yibu's bar.
+Do not treat compilation as device acceptance. Verify tray behavior through the
+selected desktop presentation: Sequoia's bar or the Classic/Yibu Tray window.
 
 ## Publishing fixed component releases
 

@@ -520,6 +520,10 @@ BOOL WAYLAND_WindowPosChanging(HWND hwnd, UINT swp_flags, BOOL shaped, const str
     return TRUE;
 }
 
+static pthread_mutex_t activation_mutex = PTHREAD_MUTEX_INITIALIZER;
+static char *provided_activation_token;
+static ULONGLONG provided_activation_time;
+
 static void activation_token_done(void *context, struct xdg_activation_token_v1 *token,
                                   const char *value)
 {
@@ -556,6 +560,7 @@ void WAYLAND_ActivateWindow(HWND hwnd, HWND previous)
     struct wayland_win_data *data;
     DWORD style;
     uint32_t serial;
+    char *provided;
 
     if (!process_wayland.xdg_activation_v1 || wayland_keyboard_get_focused_hwnd() == hwnd) return;
     style = NtUserGetWindowLongW(hwnd, GWL_STYLE);
@@ -564,6 +569,24 @@ void WAYLAND_ActivateWindow(HWND hwnd, HWND previous)
         wayland_surface_is_toplevel(data->wayland_surface) &&
         (style & (WS_VISIBLE | WS_MINIMIZE | WS_DISABLED)) == WS_VISIBLE)
     {
+        pthread_mutex_lock(&activation_mutex);
+        provided = provided_activation_token;
+        provided_activation_token = NULL;
+        if (GetTickCount64() - provided_activation_time > 5000)
+        {
+            free(provided);
+            provided = NULL;
+        }
+        pthread_mutex_unlock(&activation_mutex);
+        if (provided)
+        {
+            xdg_activation_v1_activate(process_wayland.xdg_activation_v1, provided,
+                                      data->wayland_surface->wl_surface);
+            free(provided);
+            wayland_win_data_release(data);
+            wl_display_flush(process_wayland.wl_display);
+            return;
+        }
         data->activation_token = xdg_activation_v1_get_activation_token(process_wayland.xdg_activation_v1);
         if (data->activation_token)
         {
@@ -872,46 +895,34 @@ BOOL WAYLAND_GetWindowStyleMasks(HWND hwnd, UINT style, UINT ex_style,
     return TRUE;
 }
 
-/* Called after the application's notification callback. Do not guess a window
- * from the icon owner (often a hidden message window), PID or title. */
-static void activate_tray_foreground(HANDLE section)
+/* SNI callbacks cross Wine processes. Keep one user activation context, shared
+ * by the application's UI threads, until its own activation request consumes it. */
+static void provide_activation_context(HANDLE section)
 {
     void *view = NULL;
     SIZE_T size = 0;
-    HWND hwnd = NtUserGetForegroundWindow();
-    struct wayland_win_data *data;
-    DWORD pid = 0, style;
+    char *token = NULL;
 
-    if (NtMapViewOfSection(section, NtCurrentProcess(), &view, 0, 0, NULL,
-                           &size, ViewUnmap, 0, PAGE_READONLY))
+    if (!NtMapViewOfSection(section, NtCurrentProcess(), &view, 0, 0, NULL,
+                            &size, ViewUnmap, 0, PAGE_READONLY))
     {
-        NtClose(section);
-        return;
+        if (memchr(view, 0, size)) token = strdup(view);
+        NtUnmapViewOfSection(NtCurrentProcess(), view);
     }
     NtClose(section);
-    NtUserGetWindowThread(hwnd, &pid);
-    style = NtUserGetWindowLongW(hwnd, GWL_STYLE);
-    if (process_wayland.xdg_activation_v1 && pid == GetCurrentProcessId() &&
-        (style & (WS_VISIBLE | WS_MINIMIZE | WS_DISABLED)) == WS_VISIBLE &&
-        memchr(view, 0, size) && (data = wayland_win_data_get(hwnd)))
-    {
-        if (data->wayland_surface && wayland_surface_is_toplevel(data->wayland_surface))
-        {
-            xdg_activation_v1_activate(process_wayland.xdg_activation_v1, view,
-                                      data->wayland_surface->wl_surface);
-            wl_display_flush(process_wayland.wl_display);
-        }
-        wayland_win_data_release(data);
-    }
-    NtUnmapViewOfSection(NtCurrentProcess(), view);
+    pthread_mutex_lock(&activation_mutex);
+    free(provided_activation_token);
+    provided_activation_token = token;
+    provided_activation_time = GetTickCount64();
+    pthread_mutex_unlock(&activation_mutex);
 }
 
 LRESULT WAYLAND_WindowMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg)
     {
-    case WM_WAYLAND_TRAY_ACTIVATE:
-        activate_tray_foreground((HANDLE)wp);
+    case WM_WAYLAND_ACTIVATION_CONTEXT:
+        provide_activation_context((HANDLE)wp);
         return 0;
     case WM_WAYLAND_INIT_DISPLAY_DEVICES:
         NtUserCallNoParam(NtUserCallNoParam_DisplayModeChanged);

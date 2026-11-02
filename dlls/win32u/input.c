@@ -2417,6 +2417,12 @@ BOOL set_foreground_window( HWND hwnd, BOOL mouse, BOOL internal )
 
     TRACE( "hwnd %p, mouse %u, internal %u -> ret %u, previous %p\n", hwnd, mouse, internal, ret, previous );
 
+    /* The native compositor may have focused a non-Wine application while USER
+     * still records this HWND as foreground. Forward an explicit repeat request
+     * so the driver can apply the caller's native activation context. */
+    if (ret && hwnd && previous == hwnd && !internal)
+        user_driver->pActivateWindow( hwnd, previous );
+
     if (ret && previous != hwnd)
     {
         old_thread_id = previous ? get_window_thread( previous, NULL ) : 0;
