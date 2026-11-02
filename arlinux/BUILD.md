@@ -71,8 +71,12 @@ are passed literally. The installer does not import the Windows launcher.
   creates a hardware graphics device before querying DXVK requirements. The
   selected driver is written to the immutable launch-view metadata; Android
   honors that selection without overriding it based on the GPU vendor. If both
-  fail, their diagnostics are reported and installation stops. This is independent
-  of the Linux/glibc graphics selection and never selects software rendering.
+  fail, their diagnostics are reported and installation stops. The host passes
+  `ARLINUX_FORCE_SYSTEM_GPU_DRIVER=1` when the user forces the system GPU driver
+  (`0` or absent preserves automatic selection). In that mode the installer
+  probes only the system adapter, including when a previous launch view used
+  Turnip. Driver/DXVK selection remains owned here; the host passes policy, not
+  implementation choices. Neither mode selects software rendering.
 
 Launch-view identity hashes installed file contents and effective runtime
 configuration. Installer source, probes, endpoints and source provenance do not

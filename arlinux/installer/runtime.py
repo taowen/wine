@@ -22,7 +22,8 @@ def ensure_runtime(components, state, run_native_tool):
     endpoints = {row[0]: row for row in rows}
     native = components.get(endpoints.pop('wine-bionic'))
     probe = Path(__file__).parents[3]/'bin/wine-vulkan-info'
-    drivers = ['turnip', 'system'] if os.access('/dev/kgsl-3d0', os.R_OK) else ['system']
+    force_system = os.environ.get('ARLINUX_FORCE_SYSTEM_GPU_DRIVER', '0') == '1'
+    drivers = ['turnip', 'system'] if not force_system and os.access('/dev/kgsl-3d0', os.R_OK) else ['system']
     failures = []
     for driver in drivers:
         try:
