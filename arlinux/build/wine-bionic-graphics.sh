@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ $# != 6 ]]; then
-    echo 'Usage: wine-bionic-graphics.sh MESA_SOURCE_OR_DASH NDK_ROOT NATIVE_PREFIX GRAPHICS_PROTOCOLS LIBXSHMFENCE_SOURCE BUILD_DIRECTORY' >&2
+if [[ $# != 7 ]]; then
+    echo 'Usage: wine-bionic-graphics.sh MESA_SOURCE_OR_DASH NDK_ROOT NATIVE_PREFIX GRAPHICS_PROTOCOLS LIBXSHMFENCE_SOURCE BUILD_DIRECTORY LIBX11_SOURCE' >&2
     exit 2
 fi
 mesa="$(realpath -m "$1")"
@@ -26,6 +26,12 @@ if [[ "$driver" != none && ! -f "$mesa/src/vulkan/wsi/wsi_common_arlinux.c" ]]; 
     exit 2
 fi
 mkdir -p "$base" "$prefix/lib/pkgconfig"
+# The shared Mesa WSI includes Xlib/XCB and Wayland surface adapters.
+if [[ ! -d "$base/x11/prefix" ]]; then
+    bash "$(dirname "$0")/bionic-x11.sh" "$native" "$2" "$7" "$base/x11"
+fi
+native="$base/x11/prefix"
+cp -a "$native"/lib/libX11*.so* "$native"/lib/libXext.so* "$prefix/lib/"
 fetch() {
     local url=$1 name=$2 digest=$3
     [[ -f "$base/$name" ]] || curl -fLsS --connect-timeout 10 --max-time 120 --retry 2 "$url" -o "$base/$name"

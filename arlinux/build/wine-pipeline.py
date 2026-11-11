@@ -24,7 +24,7 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
         'dxvk-legacy': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk-legacy'),
         'wine-installer': ('arlinux/build/wine-installer.sh', 'arlinux/installer', 'arlinux/components/dxvk'),
         'wine-tls': ('arlinux/components/bionic-deps/build-tls.sh',),
-        'wine-graphics': ('arlinux/build/wine-bionic-graphics.sh', 'arlinux/components/mesa', 'arlinux/components/libxshmfence', 'arlinux/components/libhybris/arlinux/graphics-protocols'),
+        'wine-graphics': ('arlinux/build/wine-bionic-graphics.sh', 'arlinux/build/bionic-x11.sh', 'arlinux/components/libX11', 'arlinux/components/mesa', 'arlinux/components/libxshmfence', 'arlinux/components/libhybris/arlinux/graphics-protocols'),
         'wine-vulkan': ('arlinux/components/libhybris/arlinux/build-bionic-vulkan.py', 'arlinux/components/libhybris', 'arlinux/components/android-headers'),
         'wine-bionic-compile': ('arlinux/build/wine-bionic.sh', 'arlinux/components/FEX'),
         'wine-bionic': ('arlinux/package-wine-bionic.py', 'arlinux/wine_pe_debug.py',
@@ -84,7 +84,8 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
     tls = stage('wine-tls', lambda out: invoke('bash', 'arlinux/components/bionic-deps/build-tls.sh', paths['ndk'], out))
     graphics = stage('wine-graphics', lambda out: invoke('bash', 'arlinux/build/wine-bionic-graphics.sh',
                      framework / 'arlinux/components/mesa', paths['ndk'], paths['bionicPrefix'],
-                     framework / 'arlinux/components/libhybris/arlinux/graphics-protocols', framework / 'arlinux/components/libxshmfence', out), ('bionic-deps',))
+                     framework / 'arlinux/components/libhybris/arlinux/graphics-protocols', framework / 'arlinux/components/libxshmfence', out,
+                     framework / 'arlinux/components/libX11'), ('bionic-deps',))
     adapter = stage('wine-vulkan', lambda out: invoke('python3', 'arlinux/components/libhybris/arlinux/build-bionic-vulkan.py',
                     '--framework', framework, '--source', framework / 'arlinux/components/libhybris', '--headers', framework / 'arlinux/components/android-headers',
                     '--ndk', paths['ndk'], '--native-prefix', paths['bionicPrefix'],
