@@ -135,6 +135,7 @@ c_link_args = ['-L{native}/lib', '-Wl,-z,max-page-size=16384']
 cpp_link_args = ['-static-libstdc++', '-L{native}/lib', '-Wl,-z,max-page-size=16384']
 ''')
 PY
+build_xlib libxshmfence-arlinux ''
 export PKG_CONFIG_LIBDIR="$prefix/lib/pkgconfig"
 cmake -S "$base/Vulkan-Loader-1.4.357" -B "$base/loader-build-1.4.357" -G Ninja \
     -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
