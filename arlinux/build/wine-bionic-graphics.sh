@@ -148,15 +148,14 @@ if [[ "$opengl" == zink ]]; then
     [[ "$driver" == none ]] || vulkan_drivers=freedreno
     if [[ ! -d "$base/build-zink-$driver" ]]; then
         meson setup "$base/build-zink-$driver" "$base/mesa" --cross-file "$base/cross.ini" \
-            --prefix="$prefix" -Dplatforms=x11,wayland -Darlinux-wsi=true \
+            --prefix="$prefix" -Dplatforms=wayland -Darlinux-wsi=true \
             -Dxlib-lease=disabled -Dvulkan-drivers="$vulkan_drivers" -Dfreedreno-kmds=kgsl \
             -Dgallium-drivers=zink -Dllvm=disabled -Degl=enabled -Dglx=disabled \
             -Dgbm=disabled -Dgles1=disabled -Dgles2=enabled -Dopengl=true \
             -Dxmlconfig=enabled -Dzstd=disabled -Dlibunwind=disabled \
             -Dvideo-codecs=[] -Dtools=[] --wrap-mode=nofallback
     else
-        meson configure "$base/build-zink-$driver" -Dplatforms=x11,wayland \
-            -Dxmlconfig=enabled -Dvulkan-drivers="$vulkan_drivers"
+        meson configure "$base/build-zink-$driver" -Dxmlconfig=enabled -Dvulkan-drivers="$vulkan_drivers"
     fi
     ninja -C "$base/build-zink-$driver" -j"${JOBS:-8}"
     meson install -C "$base/build-zink-$driver"
@@ -178,7 +177,7 @@ PY
 fi
 if [[ ! -d "$base/build-native" ]]; then
     meson setup "$base/build-native" "$base/mesa" --cross-file "$base/cross.ini" \
-        --prefix="$prefix" -Dplatforms=x11,wayland -Darlinux-wsi=true \
+        --prefix="$prefix" -Dplatforms=wayland -Darlinux-wsi=true \
         -Dxlib-lease=disabled -Dvulkan-drivers=freedreno -Dfreedreno-kmds=kgsl \
         -Dgallium-drivers=[] -Dllvm=disabled -Degl=disabled -Dglx=disabled \
         -Dgbm=disabled -Dgles1=disabled -Dgles2=disabled -Dopengl=false \
