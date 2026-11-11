@@ -62,6 +62,7 @@ build_xlib() {
 fetch https://codeload.github.com/KhronosGroup/Vulkan-Headers/tar.gz/refs/tags/v1.4.357 Vulkan-Headers.tar.gz 7dc0dbcf1d49dd3d7da3761c251c6097dfbaac475321a4a8a99269d3d5abecdc
 fetch https://codeload.github.com/KhronosGroup/Vulkan-Loader/tar.gz/refs/tags/v1.4.357 Vulkan-Loader.tar.gz 54fa49715782b919092c8353a8a7656180cad1a1b6879b61845e77c261edb2e7
 fetch https://gitlab.freedesktop.org/wayland/wayland/-/releases/1.25.0/downloads/wayland-1.25.0.tar.xz wayland-1.25.0.tar.xz c065f040afdff3177680600f249727e41a1afc22fccf27222f15f5306faa1f03
+fetch https://gitlab.freedesktop.org/wayland/wayland-protocols/-/releases/1.50/downloads/wayland-protocols-1.50.tar.xz wayland-protocols-1.50.tar.xz 4460c20cfcf68b994a5ee206ed15fc19ad312f16c96075186e83b0e3f4aa48a5
 for name in Vulkan-Headers Vulkan-Loader; do
     [[ -d "$base/$name-1.4.357" ]] || tar -xf "$base/$name.tar.gz" -C "$base"
 done
@@ -74,7 +75,13 @@ fi
 ninja -C "$base/scanner-build" -j"${JOBS:-8}"
 meson install -C "$base/scanner-build"
 export PATH="$base/host-prefix/bin:$PATH"
-export PKG_CONFIG_PATH="$base/host-prefix/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH:-}"
+export PKG_CONFIG_PATH="$base/host-prefix/share/pkgconfig:$base/host-prefix/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH:-}"
+[[ -d "$base/wayland-protocols-1.50" ]] || tar -xf "$base/wayland-protocols-1.50.tar.xz" -C "$base"
+if [[ ! -d "$base/protocols-build" ]]; then
+    meson setup "$base/protocols-build" "$base/wayland-protocols-1.50" \
+        --prefix="$base/host-prefix" -Dtests=false
+fi
+meson install -C "$base/protocols-build"
 cmake -S "$base/Vulkan-Headers-1.4.357" -B "$base/headers-build-1.4.357" -DCMAKE_INSTALL_PREFIX="$prefix"
 cmake --install "$base/headers-build-1.4.357"
 python3 - "$mesa" "$base" "$native" "$ndk" "$protocols" "$driver" "$opengl" <<'PY'
@@ -99,9 +106,8 @@ for directory in ('share/pkgconfig', 'lib/pkgconfig'):
 pc = protocols / 'arlinux-wsi-protocols.pc'
 (prefix / 'lib/pkgconfig' / pc.name).write_text(pc.read_text().replace('${pcfiledir}', str(protocols)))
 # Host protocol XML and its scanner are used for code generation.
-pc = Path('/usr/share/pkgconfig/wayland-protocols.pc')
-if pc.exists():
-    (prefix / 'lib/pkgconfig' / pc.name).write_text(pc.read_text())
+pc = base / 'host-prefix/share/pkgconfig/wayland-protocols.pc'
+(prefix / 'lib/pkgconfig' / pc.name).write_text(pc.read_text())
 (base / 'cross.ini').write_text(f'''[binaries]
 c = '{ndk}/bin/aarch64-linux-android29-clang'
 cpp = '{ndk}/bin/aarch64-linux-android29-clang++'
