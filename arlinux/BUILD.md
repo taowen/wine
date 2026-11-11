@@ -10,6 +10,10 @@ to the same commit. Linux glibc and Android Bionic are two build modes of those
 sources, with independent runners and artifacts; see the
 [component ownership guide](https://github.com/taowen/libhybris/blob/arlinux/arlinux/BUILD.md).
 
+Mesa is pinned to the same fork revision as the Linux graphics component.
+Turnip uses sysmem rendering on all supported GPUs; this policy belongs to Mesa,
+not the APK, Wine launcher or individual applications.
+
 Our implementation upstream is [giang17/wine](https://github.com/giang17/wine),
 branch `d2d1-dcomp-11.20`, integrated at
 `fcad3e89b99c5882a4a0b4e889124b5f4a1c6631` on the Wine 11.20 base.
