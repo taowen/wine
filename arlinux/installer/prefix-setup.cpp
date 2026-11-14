@@ -55,6 +55,14 @@ void display_info() {
     std::printf("system_dpi=%u dc_dpi=%d window_dpi=%u gui_font_height=%ld icon_font_height=%ld\n",
             GetDpiForSystem(), GetDeviceCaps(dc, LOGPIXELSY), GetDpiForWindow(window),
             stock.lfHeight, icon.lfHeight);
+    EnumWindows([](HWND hwnd, LPARAM) -> BOOL {
+        if (!IsWindowVisible(hwnd)) return TRUE;
+        wchar_t name[256] = {};
+        GetClassNameW(hwnd, name, 256);
+        std::printf("window_class=%ls dpi=%u awareness=%d\n", name, GetDpiForWindow(hwnd),
+                static_cast<int>(GetAwarenessFromDpiAwarenessContext(GetWindowDpiAwarenessContext(hwnd))));
+        return TRUE;
+    }, 0);
     DestroyWindow(window);
     ReleaseDC(nullptr, dc);
 }
