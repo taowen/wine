@@ -18,7 +18,7 @@ mkdir -p "$files/bin" "$files/lib/arlinux" "$files/share/arlinux/wine-installer"
     -ldl -o "$files/bin/wine-vulkan-info"
 "$mingw/aarch64-w64-mingw32-clang++" -std=c++17 -O2 -static -municode \
     -Wl,--no-insert-timestamp "$repo/arlinux/installer/prefix-setup.cpp" \
-    -ladvapi32 -o "$files/lib/arlinux/wine-setup.exe"
+    -ladvapi32 -luser32 -lgdi32 -o "$files/lib/arlinux/wine-setup.exe"
 cp "$repo/arlinux/installer/runtime.py" "$repo/arlinux/installer/components.tsv" "$files/share/arlinux/wine-installer/"
 cp -R "$repo/arlinux/installer/prefix" "$files/share/arlinux/wine-installer/"
 mkdir -p "$files/share/licenses/wine-installer" "$output/source/dxvk"

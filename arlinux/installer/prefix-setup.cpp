@@ -42,6 +42,22 @@ void upgrade_display_dpi(const std::wstring& receipt) {
         if (result) fail("Set desktop DPI", result);
     }
 }
+void display_info() {
+    SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_SYSTEM_AWARE);
+    HDC dc = GetDC(nullptr);
+    if (!dc) fail("Get display DC");
+    LOGFONTW stock = {}, icon = {};
+    if (!GetObjectW(GetStockObject(DEFAULT_GUI_FONT), sizeof(stock), &stock)) fail("Query default GUI font");
+    if (!SystemParametersInfoW(SPI_GETICONTITLELOGFONT, sizeof(icon), &icon, 0)) fail("Query icon font");
+    HWND window = CreateWindowExW(0, L"STATIC", L"DPI query", WS_POPUP, 0, 0, 100, 100,
+            nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+    if (!window) fail("Create DPI query window");
+    std::printf("system_dpi=%u dc_dpi=%d window_dpi=%u gui_font_height=%ld icon_font_height=%ld\n",
+            GetDpiForSystem(), GetDeviceCaps(dc, LOGPIXELSY), GetDpiForWindow(window),
+            stock.lfHeight, icon.lfHeight);
+    DestroyWindow(window);
+    ReleaseDC(nullptr, dc);
+}
 bool exists(const std::wstring& path) { return GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES; }
 std::vector<std::wstring> files(const std::wstring& directory, const wchar_t* pattern) {
     WIN32_FIND_DATAW data;
@@ -160,6 +176,10 @@ void setup(const std::wstring& root) {
 }
 int wmain(int argc, wchar_t** argv) {
     try {
+        if (argc == 2 && std::wstring(argv[1]) == L"--display-info") {
+            display_info();
+            return 0;
+        }
         if (argc != 2) throw std::runtime_error("Expected the installed runtime files directory");
         setup(argv[1]);
         return 0;
