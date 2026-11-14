@@ -65,6 +65,11 @@ executable. APK code provides native execution and initialization lifecycle usin
 opaque runtime metadata. It does not enumerate DXVK versions or install DLLs.
 The desktop default is 144 DPI (150%). Prefix setup upgrades the former 96-DPI
 default once, preserving other values and subsequent changes made in winecfg.
+DPI changes require ending the Wine session before reopening Windows applications;
+reopening a window while the existing session remains alive is not sufficient.
+The installer's `wine-setup.exe --display-info` reports effective system/font metrics
+and visible windows' DPI awareness. Compare these values with the actual rendered
+text rather than treating the registry value alone as proof of scaling.
 Guest Tools provides the shared `ComponentStore` (release resolution, candidate
 metadata, hashed downloads, safe extraction and immutable cache). Installer
 protocol 1 calls `ensure_runtime(components, state, run_native_tool)`: `components`
