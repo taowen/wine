@@ -63,6 +63,8 @@ recipe and retain their flat runtime DLL layout.
 The installer also owns the prefix template, fonts, DLL policy and prefix setup
 executable. APK code provides native execution and initialization lifecycle using
 opaque runtime metadata. It does not enumerate DXVK versions or install DLLs.
+The desktop default is 144 DPI (150%). Prefix setup upgrades the former 96-DPI
+default once, preserving other values and subsequent changes made in winecfg.
 Guest Tools provides the shared `ComponentStore` (release resolution, candidate
 metadata, hashed downloads, safe extraction and immutable cache). Installer
 protocol 1 calls `ensure_runtime(components, state, run_native_tool)`: `components`

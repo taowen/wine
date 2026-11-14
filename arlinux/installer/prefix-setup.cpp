@@ -13,8 +13,8 @@ constexpr DWORD capacity = 32768;
 }
 struct Key {
     HKEY handle = nullptr;
-    Key(HKEY parent, const wchar_t* path) {
-        LSTATUS result = RegCreateKeyExW(parent, path, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &handle, nullptr);
+    Key(HKEY parent, const wchar_t* path, REGSAM access = KEY_SET_VALUE) {
+        LSTATUS result = RegCreateKeyExW(parent, path, 0, nullptr, 0, access, nullptr, &handle, nullptr);
         if (result) fail("Open runtime registry key", result);
     }
     ~Key() { RegCloseKey(handle); }
@@ -24,6 +24,24 @@ struct Key {
         if (result) fail("Write runtime registry value", result);
     }
 };
+void upgrade_display_dpi(const std::wstring& receipt) {
+    if (GetPrivateProfileIntW(L"display", L"dpiVersion", 0, receipt.c_str()) >= 1) return;
+    Key desktop(HKEY_CURRENT_USER, L"Control Panel\\Desktop", KEY_QUERY_VALUE | KEY_SET_VALUE);
+    DWORD dpi = 96, type = REG_DWORD, bytes = sizeof(dpi);
+    LSTATUS result = RegQueryValueExW(desktop.handle, L"LogPixels", nullptr, &type,
+            reinterpret_cast<BYTE*>(&dpi), &bytes);
+    if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND) fail("Read desktop DPI", result);
+    if (result == ERROR_SUCCESS && (type != REG_DWORD || bytes != sizeof(dpi)))
+        fail("Read desktop DPI", ERROR_INVALID_DATA);
+    // Upgrade only the former default, once. Later installer updates must not
+    // undo a user's explicit choice, including returning to 96 DPI in winecfg.
+    if (result == ERROR_FILE_NOT_FOUND || dpi == 96) {
+        dpi = 144;
+        result = RegSetValueExW(desktop.handle, L"LogPixels", 0, REG_DWORD,
+                reinterpret_cast<const BYTE*>(&dpi), sizeof(dpi));
+        if (result) fail("Set desktop DPI", result);
+    }
+}
 bool exists(const std::wstring& path) { return GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES; }
 std::vector<std::wstring> files(const std::wstring& directory, const wchar_t* pattern) {
     WIN32_FIND_DATAW data;
@@ -63,6 +81,7 @@ void setup(const std::wstring& root) {
     // The downloader installs exactly one DXVK producer into the flat runtime directory.
     Key overrides(HKEY_CURRENT_USER, L"Software\\Wine\\DllOverrides");
     const auto receipt = windows + L"\\arlinux-runtime.ini";
+    upgrade_display_dpi(receipt);
     std::wstring previous(capacity, L'\0');
     DWORD count = GetPrivateProfileStringW(L"graphics", L"dlls", L"", previous.data(), previous.size(), receipt.c_str());
     if (count >= previous.size() - 1) throw std::runtime_error("Invalid prior runtime installation receipt");
@@ -135,6 +154,7 @@ void setup(const std::wstring& root) {
         }
     }
     if (!WritePrivateProfileStringW(L"graphics", L"dlls", current.c_str(), receipt.c_str())) fail("Write runtime installation receipt");
+    if (!WritePrivateProfileStringW(L"display", L"dpiVersion", L"1", receipt.c_str())) fail("Write display policy receipt");
     std::fprintf(stderr, "Wine runtime prefix installation complete\n");
 }
 }
