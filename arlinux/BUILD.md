@@ -209,6 +209,13 @@ not a blanket invalidation key. Compiler outputs, references and receipts are
 verified before reuse. Compiler caches are bounded in the graph; exported SDK
 capsules do not duplicate complete private object trees or unrelated toolchains.
 
+Consumers of a component subdirectory hash its pinned Git tree entries. Mesa's
+protocol input therefore does not change when unrelated libhybris Vulkan code
+changes. SDK capsules stream tar directly through zstd; small capsules become
+upload parts without another copy, and larger parts use bounded memory. Payload
+uploads run concurrently, followed by the pinned manifest and finally the mutable
+completion marker. Downstream jobs retain archive and output verification.
+
 Hosted preparation fetches pinned submodules with bounded parallel jobs. Native
 Wine uses only FEX's UnixLib source files and does not initialize FEX's recursive
 dependencies; the independent FEX DLL producer initializes that compiler tree.

@@ -487,7 +487,6 @@ def publish(data, framework):
                                   complete=not sdk)
         if not sdk:
             return
-    archive = output / 'capsule.tar'
     # Compiler tools can point at generated source/header trees outside the
     # output directory. Preserve those references at the same absolute path.
     # Toolchains, pinned checkouts and declared pipeline dependencies are
@@ -513,31 +512,61 @@ def publish(data, framework):
                     root/'toolchains', framework/'arlinux/components', framework/'build/pipeline')):
                 continue
             paths.append(target)
-    with tarfile.open(archive, 'w') as target:
-        seen = set()
-        for path in paths:
-            relative = path.resolve().relative_to(root.resolve())
-            if relative in seen:
-                continue
-            seen.add(relative)
-            target.add(path, arcname=relative.as_posix())
-    compressed = archive.with_suffix('.tar.zst')
+    # Stream tar directly into zstd. Large SDK capsules previously wrote the
+    # entire uncompressed tree to disk and read it back before uploading.
+    import time
+    packing_started = time.monotonic()
+    compressed = output/'capsule.tar.zst'
     import zstandard
-    with archive.open('rb') as source, compressed.open('wb') as dest:
-        with zstandard.ZstdCompressor(level=3, threads=4).stream_writer(dest) as writer:
-            shutil.copyfileobj(source, writer)
-    archive.unlink()
-    record['archiveSha256'] = sha(compressed)
     tag = load_plan(framework/'arlinux/build')['stages'][stage]['release']
     repository = os.environ['GITHUB_REPOSITORY']
     record['parts'] = []
-    with compressed.open('rb') as source:
-        while block := source.read(1024*1024*1024):
-            name = f'capsule-{record["archiveSha256"]}-{len(record["parts"]):03d}.zst.part'
-            part = output/name
-            part.write_bytes(block)
-            record['parts'].append(dict(name=name, sha256=sha(part),
+    created_parts = []
+    try:
+        with compressed.open('wb') as dest:
+            with zstandard.ZstdCompressor(level=3, threads=min(4, os.cpu_count() or 1)).stream_writer(dest) as writer:
+                with tarfile.open(fileobj=writer, mode='w|') as target:
+                    seen = set()
+                    for path in paths:
+                        relative = path.resolve().relative_to(root.resolve())
+                        if relative in seen:
+                            continue
+                        seen.add(relative)
+                        target.add(path, arcname=relative.as_posix())
+        record['archiveSha256'] = sha(compressed)
+        part_limit = 1024*1024*1024
+        if compressed.stat().st_size <= part_limit:
+            name = f'capsule-{record["archiveSha256"]}-000.zst.part'
+            compressed.replace(output/name)
+            created_parts.append(output/name)
+            record['parts'].append(dict(name=name, sha256=record['archiveSha256'],
                 url=f'https://github.com/{repository}/releases/download/{tag}/{name}'))
+        else:
+            with compressed.open('rb') as source:
+                remaining = compressed.stat().st_size
+                while remaining:
+                    name = f'capsule-{record["archiveSha256"]}-{len(record["parts"]):03d}.zst.part'
+                    part = output/name
+                    created_parts.append(part)
+                    size = min(remaining, part_limit)
+                    with part.open('wb') as dest:
+                        for offset in range(0, size, 16*1024*1024):
+                            wanted = min(size-offset, 16*1024*1024)
+                            block = source.read(wanted)
+                            if len(block) != wanted:
+                                raise EOFError('Component capsule changed while splitting')
+                            dest.write(block)
+                    remaining -= size
+                    record['parts'].append(dict(name=name, sha256=sha(part),
+                        url=f'https://github.com/{repository}/releases/download/{tag}/{name}'))
+    except BaseException:
+        for part in created_parts:
+            part.unlink(missing_ok=True)
+        raise
+    finally:
+        compressed.unlink(missing_ok=True)
+    print('Packed component capsule: '+str(sum(part.stat().st_size for part in created_parts))+
+          ' bytes, '+str(len(created_parts))+' parts, '+str(round(time.monotonic()-packing_started, 2))+' seconds', flush=True)
     manifest = output/'component.json'
     manifest.write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
     pinned_manifest = output/('component-'+sha(manifest)+'.json')
@@ -554,12 +583,19 @@ def publish(data, framework):
         assets = {asset['name']:asset for asset in json.loads(existing.stdout)['assets']}
     # Payload names contain their archive digest so an in-flight reader cannot
     # mix generations. Replace the completion marker only after all uploads.
-    for file in [*(output/part['name'] for part in record['parts']), *diagnostic_assets, pinned_manifest, manifest]:
+    def upload(file):
         if file.name in assets:
             if assets[file.name].get('digest') != 'sha256:'+sha(file):
                 run('gh','release','upload',tag,'--repo',repository,file,'--clobber')
         else:
             run('gh','release','upload',tag,'--repo',repository,file)
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(upload, [*(output/part['name'] for part in record['parts']), *diagnostic_assets]))
+    # Publish metadata only after every payload succeeds. Keep the mutable
+    # completion marker last so readers never observe a partial generation.
+    upload(pinned_manifest)
+    upload(manifest)
 
 
 if __name__ == '__main__':

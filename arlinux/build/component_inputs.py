@@ -22,7 +22,7 @@ SOURCES = {
     'wine-tls': ('arlinux/components/bionic-deps',),
     'wine-graphics': ('arlinux/build/wine-bionic-graphics.sh', 'arlinux/build/bionic-x11.sh',
                       'arlinux/components/libX11', 'arlinux/components/mesa',
-                      'arlinux/components/libxshmfence', 'arlinux/components/libhybris'),
+                      'arlinux/components/libxshmfence', 'arlinux/components/libhybris/arlinux/graphics-protocols'),
     'wine-vulkan': ('arlinux/components/libhybris', 'arlinux/components/android-headers'),
     'wine-bionic-compile': ('@wine', *PE, 'arlinux/build/wine-bionic.sh', 'arlinux/components/FEX'),
     'wine-bionic': ('arlinux/package-wine-bionic.py', 'arlinux/wine_pe_debug.py',
@@ -85,6 +85,36 @@ def tree_entries(repo, revision, paths=()):
         if record:
             metadata, name = record.split(b'\t', 1)
             entries[name.decode()] = metadata.decode()
+    # Git does not descend through gitlinks. Resolve declared subdirectories
+    # against the pinned component object, rather than invalidating an entire
+    # producer whenever unrelated files in that component change. The checkout
+    # belongs to this source view and follows its existing cache lifecycle.
+    nested = {}
+    for path in paths:
+        parts = path.split('/')
+        if len(parts) <= 3 or parts[:2] != ['arlinux', 'components']:
+            continue
+        module = '/'.join(parts[:3])
+        nested.setdefault(module, []).append('/'.join(parts[3:]))
+    for module, subsets in nested.items():
+        link = subprocess.check_output(['git', '-C', str(repo), 'ls-tree', revision, '--', module]).decode().split()
+        if not link or link[0] != '160000':
+            continue
+        pin = link[2]
+        checkout = Path(repo)/module
+        if not (checkout/'.git').exists():
+            subprocess.run(['git', '-C', str(repo), 'submodule', 'update', '--init', '--depth', '1', '--', module], check=True)
+        present = subprocess.run(['git', '-C', str(checkout), 'cat-file', '-e', pin+'^{commit}'],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if present.returncode:
+            subprocess.run(['git', '-C', str(checkout), 'fetch', '--depth', '1', 'origin', pin], check=True)
+        records = subprocess.check_output(['git', '-C', str(checkout), 'ls-tree', '-r', '-z', pin, '--', *subsets])
+        if not records:
+            raise ValueError('Declared component subtree is absent: '+module+'/'+','.join(subsets))
+        for record in records.split(b'\0'):
+            if record:
+                metadata, name = record.split(b'\t', 1)
+                entries[module+'/'+name.decode()] = metadata.decode()
     return entries
 
 
@@ -93,7 +123,9 @@ def source_inputs(repo, revision, stage, plan):
     selected = tree_entries(repo, revision, (*SHARED, *(p for p in paths if p != '@wine')))
     def source(path):
         return subprocess.check_output(['git', '-C', str(repo), 'show', revision+':'+path]).decode()
-    selected['arlinux/build/component_inputs.py'] = implementation(source('arlinux/build/component_inputs.py'))
+    # The resolved declarations, tools and recipe code below are the inputs.
+    # Hashing this collector as well made changes to cache bookkeeping invalidate
+    # unrelated compilers even when their complete input set was identical.
     if stage == 'bionic-deps':
         # Vulkan/Mesa/PE recipes do not participate in the base SDK compiler.
         path = 'arlinux/build/wine-pipeline.py'
