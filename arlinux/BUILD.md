@@ -110,12 +110,14 @@ Hardware admission does not establish application compatibility; complete the
 fresh-instance application journey before promotion.
 
 `wine-media` independently builds native FFmpeg demuxing for `winedmo` and
-GStreamer with its FFmpeg codecs for Wine's Media Foundation backend. The native
-compile requires both at configure time. Packaging follows native library
+GStreamer with its FFmpeg codecs, ASF demuxer, video processing elements and
+plugin scanner for Wine's Media Foundation backend. Each PE producer explicitly
+builds the Windows GStreamer frontend without requiring a host GStreamer SDK;
+normal prefix initialization registers its COM handlers. The native compile
+requires the Bionic media SDK at configure time. Packaging follows native library
 dependencies, preserves GStreamer's relocatable plugin/scanner layout and
 includes licenses, source URLs, checksums and the build recipe. Media dependency
-changes do not rebuild the base Android SDK or graphics libraries. This does not
-install a second media service.
+changes do not rebuild the base Android SDK or graphics libraries.
 
 Wayland windows with a Win32 caption or resizable frame request compositor
 decorations through `xdg-decoration`. Classic supplies its normal window controls;
