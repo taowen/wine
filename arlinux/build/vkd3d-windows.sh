@@ -58,7 +58,9 @@ endian = 'little'
 EOF
     options=()
     [[ ! -f "$cache/$arch/build.ninja" ]] || options+=(--reconfigure)
-    meson setup "${options[@]}" "$cache/$arch" "$cache/source" \
+    # Build from the pinned component checkout so upstream's vcs_tag reads its
+    # own commit, not the surrounding Wine repository of an exported copy.
+    meson setup "${options[@]}" "$cache/$arch" "$source" \
         --cross-file "$cache/$arch.ini" --buildtype release \
         -Denable_tests=false -Denable_extras=false -Denable_trace=false
     ninja -C "$cache/$arch" -j"${JOBS:-8}"
