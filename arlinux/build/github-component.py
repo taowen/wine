@@ -3,6 +3,7 @@
 from component_recipes import load_plan
 import argparse
 import hashlib
+import gzip
 import json
 import os
 from pathlib import Path
@@ -345,8 +346,18 @@ def build_wine_capture(data, framework):
         run('bash', source/'arlinux/build-bionic.sh', tools['ndk'], prefix, build_dir, staged,
             env=dict(os.environ, JOBS='4', CCACHE_DIR=str(root/'cache/ccache')))
         archive = output/'arlinux-wine-capture.tar.gz'
-        with tarfile.open(archive,'w:gz') as target:
-            target.add(staged,arcname='capture-tools')
+        # Helper or publication changes must not make identical native tools a
+        # new 50+ MiB download just because gzip/tar recorded this run's time.
+        with archive.open('wb') as raw, gzip.GzipFile(filename='',fileobj=raw,mode='wb',compresslevel=3,mtime=0) as compressed:
+            with tarfile.open(fileobj=compressed,mode='w|') as target:
+                for path in [staged,*sorted(staged.rglob('*'))]:
+                    name='capture-tools' if path==staged else 'capture-tools/'+path.relative_to(staged).as_posix()
+                    entry=target.gettarinfo(str(path),arcname=name)
+                    entry.uid=entry.gid=entry.mtime=0
+                    entry.uname=entry.gname=''
+                    if entry.isfile():
+                        with path.open('rb') as source_file:target.addfile(entry,source_file)
+                    else:target.addfile(entry)
         (output/(archive.name+'.sha256')).write_text(sha(archive)+'  '+archive.name+'\n')
         shutil.rmtree(staged)
         shutil.copyfile(framework/'arlinux/vulkan-capture.py', output/'vulkan-capture.py')
