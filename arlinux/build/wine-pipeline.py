@@ -21,6 +21,7 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
         'wine-pe': ('arlinux/build/wine-pe.sh',),
         'fex': ('arlinux/build/fex-windows.sh', 'arlinux/components/FEX'),
         'dxvk': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk'),
+        'vkd3d': ('arlinux/build/vkd3d-windows.sh', 'arlinux/components/vkd3d-proton'),
         'dxvk-legacy': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk-legacy'),
         'wine-installer': ('arlinux/build/wine-installer.sh', 'arlinux/installer', 'arlinux/components/dxvk'),
         'wine-tls': ('arlinux/components/bionic-deps/build-tls.sh',),
@@ -77,6 +78,7 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
     tools = Path(json.loads((arm / 'build-state.json').read_text())['tools']) if arm else None
     fex = stage('fex', lambda out: invoke('bash', 'arlinux/build/fex-windows.sh', paths['mingw'], out))
     dxvk = stage('dxvk', lambda out: invoke('bash', 'arlinux/build/dxvk-windows.sh', paths['mingw'], out, 'modern'))
+    stage('vkd3d', lambda out: invoke('bash', 'arlinux/build/vkd3d-windows.sh', paths['mingw'], out))
     stage('dxvk-legacy', lambda out: invoke('bash', 'arlinux/build/dxvk-windows.sh', paths['mingw'], out, 'legacy'))
 
     stage('wine-installer', lambda out: invoke('bash', 'arlinux/build/wine-installer.sh', paths['ndk'], paths['mingw'], paths['vulkanHeaders'], out))

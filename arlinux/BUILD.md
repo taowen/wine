@@ -60,6 +60,15 @@ The probe shares modern DXVK's feature declarations and baseline constants;
 there is no second APK feature table. Both DXVK versions use the same compiler
 recipe and retain their flat runtime DLL layout.
 
+Modern Vulkan devices also install standalone VKD3D-Proton from the pinned
+`arlinux/components/vkd3d-proton` fork for Direct3D 12. It shares DXVK's DXGI,
+using ARM64X DLLs for native ARM64 and translated x64 applications and separate
+x86 DLLs for the 32-bit prefix. Legacy DXVK devices retain Wine's builtin
+D3D12. This builds only the D3D12 translator, not Steam Proton. Its independent
+`vkd3d` producer uses the same build, device-candidate and promotion entry as
+other Wine components. The installer owns DLL placement and overrides; neither
+Android nor individual games select a second graphics stack.
+
 The installer also owns the prefix template, fonts, DLL policy and prefix setup
 executable. APK code provides native execution and initialization lifecycle using
 opaque runtime metadata. It does not enumerate DXVK versions or install DLLs.
@@ -145,7 +154,7 @@ Windows integration `message-wait` diagnostic compares the same executable on
 native Windows and Wine without modifying or injecting into the application.
 
 The producers are `wine-bionic`, `wine-pe-aarch64`, `wine-pe-x86_64`,
-`wine-pe-i386`, `fex`, `dxvk`, `dxvk-legacy`, `wine-installer`, `windows-fonts`, `wine-addons`, `steamworks`,
+`wine-pe-i386`, `fex`, `dxvk`, `dxvk-legacy`, `vkd3d`, `wine-installer`, `windows-fonts`, `wine-addons`, `steamworks`,
 `windows-accessibility` and `windows-tray`. Their independently hashed compiler
 receipts and source archives remain reproducible. Compiler dependencies are
 built only when required by the requested producer; building `wine-bionic`

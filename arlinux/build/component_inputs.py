@@ -15,6 +15,7 @@ SOURCES = {
     'wine-pe': (),
     'fex': ('arlinux/build/fex-windows.sh', 'arlinux/components/FEX', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
     'dxvk': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
+    'vkd3d': ('arlinux/build/vkd3d-windows.sh', 'arlinux/components/vkd3d-proton', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
     'dxvk-legacy': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk-legacy', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
     'wine-installer': ('arlinux/installer', 'arlinux/build/wine-installer.sh', 'arlinux/components/dxvk', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
     'wine-addons': ('arlinux/build/local_addons.py', 'arlinux/build/runtime_distribution.py'),

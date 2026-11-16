@@ -41,6 +41,8 @@ def ensure_runtime(components, state, run_native_tool):
     print('Selected hardware Vulkan driver: '+driver, flush=True)
     print('Selected hardware graphics component: '+profile, flush=True)
     endpoints.pop('dxvk-legacy' if profile == 'dxvk' else 'dxvk')
+    if profile == 'dxvk-legacy':
+        endpoints.pop('vkd3d')
     with ThreadPoolExecutor(max_workers=4) as pool:
         roots = [native, *pool.map(components.get, endpoints.values())]
     installer = Path(__file__).parents[4]
@@ -65,7 +67,7 @@ def ensure_runtime(components, state, run_native_tool):
             elif key == 'vulkanDriver' and root == native:
                 # The producer supplies drivers; the installer selects one.
                 metadata[key] = driver
-            elif key in ('sources', 'compatibility', 'originalSources', 'wineSource', 'wineCommit', 'fexCommit', 'dxvkCommit', 'installerProtocol'):
+            elif key in ('sources', 'compatibility', 'originalSources', 'wineSource', 'wineCommit', 'fexCommit', 'dxvkCommit', 'vkd3dCommit', 'installerProtocol'):
                 # Source provenance stays with each producer. Independent PE
                 # architectures can legitimately originate from different commits.
                 continue

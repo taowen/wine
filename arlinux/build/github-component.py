@@ -116,6 +116,10 @@ def prepare(data, framework):
             packages = ['build-essential', 'bison', 'flex', 'ccache', 'gettext', 'libfreetype-dev',
                         'cmake', 'ninja-build', 'pkg-config', 'git', 'curl', 'unzip',
                         'python3', 'python3-venv', 'python3-pip', 'zstd']
+        if data['stage'] == 'vkd3d':
+            packages = ['build-essential', 'ccache', 'cmake', 'ninja-build', 'pkg-config',
+                        'git', 'curl', 'unzip', 'python3', 'python3-venv', 'python3-pip',
+                        'zstd', 'glslang-tools', 'mingw-w64-tools']
         if data['stage'] == 'wine-vulkan':
             packages = ['build-essential', 'ccache', 'cmake', 'ninja-build', 'pkg-config',
                         'git', 'curl', 'unzip', 'patch', 'python3', 'python3-venv',

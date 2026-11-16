@@ -19,7 +19,7 @@ def release_base(stage, repository=None):
 LEAF_INDEX = 'arlinux-wine-runtime.json'
 RUNTIME_STAGES = ('wine-bionic', 'steamworks', 'windows-accessibility', 'windows-tray',
                   'wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386',
-                  'fex', 'dxvk', 'dxvk-legacy', 'wine-installer', 'windows-fonts', 'wine-addons')
+                  'fex', 'dxvk', 'dxvk-legacy', 'vkd3d', 'wine-installer', 'windows-fonts', 'wine-addons')
 
 
 def publish_runtime_component(data, framework, record, built, complete=True):
@@ -92,6 +92,16 @@ def publish_runtime_component(data, framework, record, built, complete=True):
                 metadata['dxvkCommit'] = (files/'source-commit').read_text().strip()
                 metadata['dxvkVersion'] = '2.7.1' if stage == 'dxvk' else '1.10.3'
                 metadata['originalSources'][stage] = dict(asset=source.name, sha256=sha(source))
+            elif stage == 'vkd3d':
+                target = runtime/'files/lib/wine/vkd3d'
+                target.mkdir(parents=True)
+                for folder in built.glob('*-windows'):
+                    shutil.copytree(folder, target/folder.name)
+                source = output/'vkd3d-source.tar.gz'
+                shutil.copyfile(built/source.name, source)
+                metadata['vkd3dCommit'] = (built/'source-commit').read_text().strip()
+                metadata['vkd3dVersion'] = '3.1'
+                metadata['originalSources'][stage] = dict(asset=source.name, sha256=sha(source))
             elif stage == 'wine-installer':
                 shutil.copytree(built/'files', runtime/'files')
                 source = output/'wine-installer-source.tar.gz'
@@ -136,7 +146,7 @@ def publish_runtime_component(data, framework, record, built, complete=True):
                         raise RuntimeError('Cannot archive the pinned Windows integration sources')
                 metadata['support'] = dict(protocol=1, directory='files/lib/arlinux')
                 metadata['originalSources'][stage] = dict(asset=source.name, sha256=sha(source))
-            if stage.startswith('wine-pe-') or stage in ('fex', 'dxvk', 'dxvk-legacy', 'wine-installer'):
+            if stage.startswith('wine-pe-') or stage in ('fex', 'dxvk', 'dxvk-legacy', 'vkd3d', 'wine-installer'):
                 from importlib.util import spec_from_file_location, module_from_spec
                 spec = spec_from_file_location('wine_pe_debug', framework/'arlinux/wine_pe_debug.py')
                 optimizer = module_from_spec(spec)

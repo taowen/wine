@@ -102,7 +102,7 @@ void setup(const std::wstring& root) {
     UINT length = GetWindowsDirectoryW(windows.data(), windows.size());
     if (!length || length >= windows.size()) fail("Resolve Windows directory");
     windows.resize(length);
-    // The downloader installs exactly one DXVK producer into the flat runtime directory.
+    // The downloader selects DXVK and, on modern Vulkan devices, standalone VKD3D-Proton.
     Key overrides(HKEY_CURRENT_USER, L"Software\\Wine\\DllOverrides");
     const auto receipt = windows + L"\\arlinux-runtime.ini";
     upgrade_display_dpi(receipt);
@@ -161,20 +161,23 @@ void setup(const std::wstring& root) {
             if (result) fail("Register font fallback", result);
         }
     }
-    // Install exactly one selected DXVK producer into the repaired prefix.
+    // Install the selected D3D9-11 and D3D12 translators through one ownership receipt.
     std::wstring current;
     for (auto architecture : {std::pair{L"aarch64-windows", L"system32"}, std::pair{L"i386-windows", L"syswow64"}}) {
         auto target = windows + L"\\" + architecture.second;
         if (!CreateDirectoryW(target.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) fail("Create graphics directory");
-        auto source = root + L"\\lib\\wine\\dxvk\\" + architecture.first;
-        auto dlls = files(source, L"*.dll");
-        if (dlls.empty()) throw std::runtime_error("Selected graphics component contains no DLLs");
-        for (const auto& name : dlls) {
-            // Remove Wine's builtin symlink before installing an independent native DLL.
-            if (!DeleteFileW((target + L"\\" + name).c_str()) && GetLastError() != ERROR_FILE_NOT_FOUND) fail("Replace runtime DLL");
-            copy(source + L"\\" + name, target + L"\\" + name);
-            overrides.text(name.substr(0, name.size() - 4), L"native,builtin");
-            if (architecture.first == std::wstring(L"aarch64-windows")) { if (!current.empty()) current += L','; current += name; }
+        for (auto producer : {L"dxvk", L"vkd3d"}) {
+            auto source = root + L"\\lib\\wine\\" + producer + L"\\" + architecture.first;
+            if (std::wstring(producer) == L"vkd3d" && !exists(source)) continue;
+            auto dlls = files(source, L"*.dll");
+            if (dlls.empty()) throw std::runtime_error("Selected graphics component contains no DLLs");
+            for (const auto& name : dlls) {
+                // Remove Wine's builtin symlink before installing an independent native DLL.
+                if (!DeleteFileW((target + L"\\" + name).c_str()) && GetLastError() != ERROR_FILE_NOT_FOUND) fail("Replace runtime DLL");
+                copy(source + L"\\" + name, target + L"\\" + name);
+                overrides.text(name.substr(0, name.size() - 4), L"native,builtin");
+                if (architecture.first == std::wstring(L"aarch64-windows")) { if (!current.empty()) current += L','; current += name; }
+            }
         }
     }
     if (!WritePrivateProfileStringW(L"graphics", L"dlls", current.c_str(), receipt.c_str())) fail("Write runtime installation receipt");
