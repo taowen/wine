@@ -45,7 +45,7 @@ def workflow_run(repository, run_id):
     if value is None:
         return None
     return dict(databaseId=value['id'], displayTitle=value['display_title'],
-                status=value['status'], conclusion=value['conclusion'], url=value['html_url'])
+                status=value['status'], conclusion=value['conclusion'] or '', url=value['html_url'])
 
 
 def dispatch_workflow(repository, workflow, request):
