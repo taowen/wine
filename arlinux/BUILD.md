@@ -354,7 +354,9 @@ component never waits for unrelated component publications.
 ## Optional diagnostics
 
 `build.ps1 diagnostics` produces matching Windows exception helpers;
-`build.ps1 wine-capture` produces optional Bionic GFXReconstruct tools. These
+`build.ps1 wine-capture` produces optional Bionic GFXReconstruct tools;
+`build.ps1 wine-validation` builds the Wayland-enabled Khronos validation layer
+from the pinned `taowen/Vulkan-ValidationLayers` fork on its own runner. These
 products are independent of ordinary runtime assembly and are disabled by
 default. The rootfs/glibc capture product is separate. Retain capture limits,
 exact module identity and an uncaptured control run; initialization records do
@@ -368,3 +370,13 @@ the exact release URL and hashes; retain it with the tested capture archive.
 No combined Wine archive or runtime-producer promotion is needed for these
 optional tools. Updating their source pin does not change an installed runtime
 or enable capture in normal application launches.
+
+Use `arlinux/vulkan-capture.py --validation` with the verified validation archive
+for a bounded API-validation run through the normal Windows host. The archive,
+SHA-256, executable and output arguments follow the capture helper's interface.
+The ordinary Android prebuilt validation layer does not intercept Wayland surface
+creation and cannot validate this WSI path. Inspect the layer's live mappings,
+ordered loader stack and actual messages; `VALIDATION_FINISHED` reports completion
+of diagnostics, not successful rendering. Repeat the user flow without validation
+before measuring performance. Remove the temporary report and extracted tools
+after inspection; immutable tool archives use the instance-external download cache.
