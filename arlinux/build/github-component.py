@@ -330,11 +330,17 @@ def build_wine_capture(data, framework):
     dependency = import_dependency(root, data['dependencies'][0], set(), recursive=False)
     prefix = root/dependency['pipelineOutput']/'prefix'
     source = framework/'arlinux/components/gfxreconstruct'
-    source_commit = subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
     inputs = dict(source=data['sourceInputs']['recipeSha256'], dependency=dependency['outputIdentity'],
                   toolchain=sha(framework/'arlinux/build/github-inputs.json'))
     def compile_capture(output):
-        build_dir = framework/'build/gfxreconstruct-bionic'/source_commit
+        # CMake's generated include paths participate in compiler-cache keys.
+        # Keep one owned working directory across source updates; retire the
+        # old commit-named trees after restoring a legacy Actions cache.
+        build_dir = framework/'build/gfxreconstruct-bionic'
+        build_dir.mkdir(parents=True,exist_ok=True)
+        for child in build_dir.iterdir():
+            if child.is_dir() and re.fullmatch('[0-9a-f]{40}',child.name):
+                shutil.rmtree(child)
         staged = output/'tools'
         run('bash', source/'arlinux/build-bionic.sh', tools['ndk'], prefix, build_dir, staged,
             env=dict(os.environ, JOBS='4', CCACHE_DIR=str(root/'cache/ccache')))
