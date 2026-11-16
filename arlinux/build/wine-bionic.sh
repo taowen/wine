@@ -54,6 +54,8 @@ export FREETYPE_CFLAGS="-I$prefix/include/freetype2" FREETYPE_LIBS="-L$prefix/li
 export FONTCONFIG_CFLAGS="-I$prefix/include" FONTCONFIG_LIBS="-L$prefix/lib -lfontconfig"
 export GNUTLS_CFLAGS="-I$tls/include" GNUTLS_LIBS="-L$tls/lib -lgnutls"
 export FFMPEG_CFLAGS="-I$media/include" FFMPEG_LIBS="-L$media/lib -Wl,-rpath-link,$media/lib -lavformat -lavcodec -lavutil"
+export GSTREAMER_CFLAGS="-I$media/include/gstreamer-1.0 -I$prefix/include/glib-2.0 -I$prefix/lib/glib-2.0/include" \
+    GSTREAMER_LIBS="-L$media/lib -L$prefix/lib -Wl,-rpath-link,$media/lib -Wl,-rpath-link,$prefix/lib -lgstvideo-1.0 -lgstaudio-1.0 -lgstbase-1.0 -lgsttag-1.0 -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0"
 export PULSE_CFLAGS="-I$pulse/include" PULSE_LIBS="-L$pulse/lib -Wl,-rpath-link,$pulse/lib/pulseaudio -lpulse"
 # configure requires a Gradle executable even with wineandroid.drv disabled.
 export PKG_CONFIG_LIBDIR=/nonexistent GRADLE=/bin/true
@@ -62,7 +64,7 @@ export PKG_CONFIG_LIBDIR=/nonexistent GRADLE=/bin/true
     "$source_dir/configure" --host=aarch64-linux-android --enable-wineandroid_drv=no \
         --enable-win64 --enable-archs=arm64ec,aarch64,i386,x86_64 --with-wine-tools="$tools_dir" \
         --disable-tests --without-x --without-xinput --without-xinput2 --with-freetype --with-fontconfig --without-xshm \
-        --with-wayland --disable-winex11.drv --without-unwind --with-gnutls --with-ffmpeg --without-gstreamer \
+        --with-wayland --disable-winex11.drv --without-unwind --with-gnutls --with-ffmpeg --with-gstreamer \
         --without-alsa --with-pulse --with-dbus "$opengl_arg" --with-vulkan \
         --prefix=/arlinux-wine --exec-prefix=/arlinux-wine
 ) > "$stage/configure.log" 2>&1

@@ -87,7 +87,8 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
     stage('wine-installer', lambda out: invoke('bash', 'arlinux/build/wine-installer.sh', paths['ndk'], paths['mingw'], paths['vulkanHeaders'], out))
 
     tls = stage('wine-tls', lambda out: invoke('bash', 'arlinux/components/bionic-deps/build-tls.sh', paths['ndk'], out))
-    media = stage('wine-media', lambda out: invoke('bash', 'arlinux/components/bionic-deps/build-media.sh', paths['ndk'], out))
+    media = stage('wine-media', lambda out: invoke('bash', 'arlinux/components/bionic-deps/build-media.sh',
+                  paths['ndk'], paths['bionicPrefix'], out), ('bionic-deps',))
     graphics = stage('wine-graphics', lambda out: invoke('bash', 'arlinux/build/wine-bionic-graphics.sh',
                      framework / 'arlinux/components/mesa', paths['ndk'], paths['bionicPrefix'],
                      framework / 'arlinux/components/libhybris/arlinux/graphics-protocols', framework / 'arlinux/components/libxshmfence', out,

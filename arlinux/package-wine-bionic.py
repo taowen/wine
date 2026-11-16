@@ -113,6 +113,14 @@ def main():
     install(args.core / 'server/wineserver', destination / 'bin/wineserver')
     for src in sorted((args.core / 'dlls').glob('*/*.so')):
         install(src, unix / src.name)
+    # GStreamer resolves these relative to its own shared library. Preserve the
+    # upstream plugin/scanner layout instead of encoding an installation path.
+    for prefix in args.dependency_prefix:
+        for plugin in sorted((prefix / 'lib/gstreamer-1.0').glob('*.so')):
+            install(plugin, unix / 'gstreamer-1.0' / plugin.name)
+        for helper in sorted((prefix / 'libexec/gstreamer-1.0').glob('*')):
+            if helper.is_file():
+                install(helper, unix.parent / 'libexec/gstreamer-1.0' / helper.name)
     for name in ['libarm64ecfex.so', 'libwow64fex.so']:
         install(args.fex / name, unix / name)
     if args.vulkan_driver == 'system':

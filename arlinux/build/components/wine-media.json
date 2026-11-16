@@ -1,7 +1,7 @@
 {
   "repository": "taowen/arlinux-bionic-deps",
   "runner": "ubuntu-24.04",
-  "dependencies": [],
+  "dependencies": ["bionic-deps"],
   "product": "wine",
   "compilerCacheMiB": 256,
   "release": "arlinux-wine-media-debug",
