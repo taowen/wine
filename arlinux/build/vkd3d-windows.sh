@@ -27,10 +27,12 @@ for arch in aarch64 x86_64 i386; do
     target="$arch"
     family="$arch"
     extra='[]'
+    widl=x86_64-w64-mingw32-widl
     if [[ "$arch" == aarch64 ]]; then
         extra="['-marm64x']"
     elif [[ "$arch" == i386 ]]; then
         target=i686
+        widl=i686-w64-mingw32-widl
         family=x86
     fi
     cat > "$cache/$arch.ini" <<EOF
@@ -40,6 +42,7 @@ cpp = ['ccache', '$compiler/$target-w64-mingw32-clang++']
 ar = '$compiler/llvm-ar'
 strip = '$compiler/llvm-strip'
 windres = '$compiler/$target-w64-mingw32-windres'
+widl = '/usr/bin/$widl'
 [properties]
 needs_exe_wrapper = true
 [built-in options]
