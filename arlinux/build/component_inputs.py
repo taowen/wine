@@ -8,7 +8,7 @@ import subprocess
 PE = ('arlinux/build/wine-pe.sh',
       'arlinux/components/windows-integration')
 SOURCES = {
-    'bionic-deps': ('arlinux/components/bionic-deps', 'tools/build', 'toolchain.json'),
+    'bionic-deps': ('arlinux/components/bionic-deps/build-deps.sh', 'tools/build', 'toolchain.json'),
     'bionic-x11': ('arlinux/build/bionic-x11.sh', 'arlinux/components/libX11'),
     'wine-pulse': ('arlinux/components/pulseaudio-android', 'tools/build/ndk-env.sh', 'toolchain.json'),
     **{'wine-pe-'+arch: ('@wine', *PE, 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py') for arch in ('aarch64', 'x86_64', 'i386')},
@@ -19,7 +19,8 @@ SOURCES = {
     'dxvk-legacy': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk-legacy', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
     'wine-installer': ('arlinux/installer', 'arlinux/build/wine-installer.sh', 'arlinux/components/dxvk', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
     'wine-addons': ('arlinux/build/local_addons.py', 'arlinux/build/runtime_distribution.py'),
-    'wine-tls': ('arlinux/components/bionic-deps',),
+    'wine-tls': ('arlinux/components/bionic-deps/build-tls.sh',),
+    'wine-media': ('arlinux/components/bionic-deps/build-media.sh',),
     'wine-graphics': ('arlinux/build/wine-bionic-graphics.sh', 'arlinux/build/bionic-x11.sh',
                       'arlinux/components/libX11', 'arlinux/components/mesa',
                       'arlinux/components/libxshmfence', 'arlinux/components/libhybris/arlinux/graphics-protocols'),
@@ -37,7 +38,7 @@ SOURCES = {
     'windows-fonts': ('arlinux/wine_fonts.py', 'arlinux/build/runtime_distribution.py'),
 }
 RESOURCES = {name: ('mingw',) for name in SOURCES}
-for name in ('bionic-deps', 'bionic-x11', 'wine-pulse', 'wine-tls', 'wine-graphics', 'wine-vulkan'):
+for name in ('bionic-deps', 'bionic-x11', 'wine-pulse', 'wine-tls', 'wine-media', 'wine-graphics', 'wine-vulkan'):
     RESOURCES[name] = ('ndk',)
 RESOURCES.update({'wine-addons': ('addons',), 'wine-bionic-compile': ('mingw', 'ndk'), 'wine-bionic': ('ndk',),
                   'wine-capture': ('ndk',), 'wine-installer': ('ndk', 'mingw', 'vulkanHeaders'), 'windows-fonts': (), 'wine-vulkan': ('ndk', 'vulkanHeaders')})

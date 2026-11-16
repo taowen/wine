@@ -25,6 +25,7 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
         'dxvk-legacy': ('arlinux/build/dxvk-windows.sh', 'arlinux/components/dxvk-legacy'),
         'wine-installer': ('arlinux/build/wine-installer.sh', 'arlinux/installer', 'arlinux/components/dxvk'),
         'wine-tls': ('arlinux/components/bionic-deps/build-tls.sh',),
+        'wine-media': ('arlinux/components/bionic-deps/build-media.sh',),
         'wine-graphics': ('arlinux/build/wine-bionic-graphics.sh', 'arlinux/build/bionic-x11.sh', 'arlinux/components/libX11', 'arlinux/components/mesa', 'arlinux/components/libxshmfence', 'arlinux/components/libhybris/arlinux/graphics-protocols'),
         'wine-vulkan': ('arlinux/components/libhybris/arlinux/build-bionic-vulkan.py', 'arlinux/components/libhybris', 'arlinux/components/android-headers'),
         'wine-bionic-compile': ('arlinux/build/wine-bionic.sh', 'arlinux/components/FEX'),
@@ -86,6 +87,7 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
     stage('wine-installer', lambda out: invoke('bash', 'arlinux/build/wine-installer.sh', paths['ndk'], paths['mingw'], paths['vulkanHeaders'], out))
 
     tls = stage('wine-tls', lambda out: invoke('bash', 'arlinux/components/bionic-deps/build-tls.sh', paths['ndk'], out))
+    media = stage('wine-media', lambda out: invoke('bash', 'arlinux/components/bionic-deps/build-media.sh', paths['ndk'], out))
     graphics = stage('wine-graphics', lambda out: invoke('bash', 'arlinux/build/wine-bionic-graphics.sh',
                      framework / 'arlinux/components/mesa', paths['ndk'], paths['bionicPrefix'],
                      framework / 'arlinux/components/libhybris/arlinux/graphics-protocols', framework / 'arlinux/components/libxshmfence', out,
@@ -96,15 +98,16 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
                     '--vulkan-headers', paths['vulkanHeaders'] / 'include', '--output', out), ('bionic-deps',))
     if cache.selected('wine-bionic-compile'):
         env.update(BIONIC_TLS_PREFIX=str(tls / 'prefix'), BIONIC_PULSE_PREFIX=str(pulse / 'work/prefix'),
+                   BIONIC_MEDIA_PREFIX=str(media / 'prefix'),
                    BIONIC_GRAPHICS_PREFIX=str(graphics / 'prefix'), BIONIC_OPENGL='zink')
     compiled = stage('wine-bionic-compile', lambda out: invoke(
         'bash', 'arlinux/build/wine-bionic.sh', paths['wineSource'], tools,
         paths['mingw'], paths['ndk'], paths['bionicPrefix'], framework / 'arlinux/components/FEX', out),
-        ('wine-pe-aarch64', 'bionic-deps', 'wine-tls', 'wine-pulse', 'wine-graphics'))
+        ('wine-pe-aarch64', 'bionic-deps', 'wine-tls', 'wine-media', 'wine-pulse', 'wine-graphics'))
 
     native = stage('wine-bionic', lambda out: assembly.package_bionic(out, framework,
-        compiled, tls, pulse, graphics, adapter, paths, invoke),
-        ('wine-bionic-compile', 'bionic-deps', 'wine-tls', 'wine-pulse', 'wine-graphics', 'wine-vulkan'))
+        compiled, tls, media, pulse, graphics, adapter, paths, invoke),
+        ('wine-bionic-compile', 'bionic-deps', 'wine-tls', 'wine-media', 'wine-pulse', 'wine-graphics', 'wine-vulkan'))
     if compiled is not None and wine is not None:
         paths.update(wineSource=compiled / 'source', wineBuild=compiled / 'core',
                      wineTools=tools, wineImportLibs=wine / 'files/lib/wine')

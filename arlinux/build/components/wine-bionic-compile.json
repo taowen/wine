@@ -5,6 +5,7 @@
     "wine-pe-aarch64",
     "bionic-deps",
     "wine-tls",
+    "wine-media",
     "wine-pulse",
     "wine-graphics"
   ],

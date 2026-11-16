@@ -109,6 +109,13 @@ The receipt is updated only after successful installation.
 Hardware admission does not establish application compatibility; complete the
 fresh-instance application journey before promotion.
 
+`wine-media` independently builds the native FFmpeg demuxing libraries used by
+Wine's `winedmo` Media Foundation backend. Wine's bundled PE codecs perform
+decoding. The native compile requires FFmpeg at configure time; packaging follows
+its native library dependencies and includes the FFmpeg license, source URL,
+checksum and build recipe. Media dependency changes do not rebuild the base
+Android SDK or graphics libraries. This does not install a second media service.
+
 Wayland windows with a Win32 caption or resizable frame request compositor
 decorations through `xdg-decoration`. Classic supplies its normal window controls;
 Wine's existing visible-frame masks suppress the duplicate Windows frame after

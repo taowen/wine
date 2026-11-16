@@ -158,6 +158,10 @@ def main():
         target.write_text(json.dumps(manifest, indent=2) + '\n')
     # Ship the LGPL-derived backend and its source preparation alongside Wine.
     shutil.copytree(args.native_prefix / 'share/licenses/dbus-1', destination / 'share/licenses/dbus-1')
+    for prefix in args.dependency_prefix:
+        licenses = prefix / 'share/licenses'
+        if licenses.is_dir():
+            shutil.copytree(licenses, destination / 'share/licenses', dirs_exist_ok=True)
     gamepad_sources = Path(__file__).resolve().parents[1]
     if compat_layer:
         shutil.copytree(compat_layer.parent / 'licenses/libhybris-vulkan',

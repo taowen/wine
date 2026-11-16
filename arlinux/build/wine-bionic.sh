@@ -12,6 +12,7 @@ mingw="$(realpath "$3")"
 ndk="$(realpath "$4")/toolchains/llvm/prebuilt/linux-x86_64"
 prefix="$(realpath "$5")"
 tls="$(realpath "${BIONIC_TLS_PREFIX:-$prefix}")"
+media="$(realpath "${BIONIC_MEDIA_PREFIX:-$prefix}")"
 pulse="$(realpath "${BIONIC_PULSE_PREFIX:-$prefix}")"
 graphics="$(realpath "${BIONIC_GRAPHICS_PREFIX:-$prefix}")"
 case "${BIONIC_OPENGL:-zink}" in
@@ -52,6 +53,7 @@ export EGL_CFLAGS="-I$graphics/include" EGL_LIBS="-L$graphics/lib -lEGL"
 export FREETYPE_CFLAGS="-I$prefix/include/freetype2" FREETYPE_LIBS="-L$prefix/lib -lfreetype"
 export FONTCONFIG_CFLAGS="-I$prefix/include" FONTCONFIG_LIBS="-L$prefix/lib -lfontconfig"
 export GNUTLS_CFLAGS="-I$tls/include" GNUTLS_LIBS="-L$tls/lib -lgnutls"
+export FFMPEG_CFLAGS="-I$media/include" FFMPEG_LIBS="-L$media/lib -Wl,-rpath-link,$media/lib -lavformat -lavcodec -lavutil"
 export PULSE_CFLAGS="-I$pulse/include" PULSE_LIBS="-L$pulse/lib -Wl,-rpath-link,$pulse/lib/pulseaudio -lpulse"
 # configure requires a Gradle executable even with wineandroid.drv disabled.
 export PKG_CONFIG_LIBDIR=/nonexistent GRADLE=/bin/true
@@ -60,7 +62,7 @@ export PKG_CONFIG_LIBDIR=/nonexistent GRADLE=/bin/true
     "$source_dir/configure" --host=aarch64-linux-android --enable-wineandroid_drv=no \
         --enable-win64 --enable-archs=arm64ec,aarch64,i386,x86_64 --with-wine-tools="$tools_dir" \
         --disable-tests --without-x --without-xinput --without-xinput2 --with-freetype --with-fontconfig --without-xshm \
-        --with-wayland --disable-winex11.drv --without-unwind --with-gnutls --without-gstreamer \
+        --with-wayland --disable-winex11.drv --without-unwind --with-gnutls --with-ffmpeg --without-gstreamer \
         --without-alsa --with-pulse --with-dbus "$opengl_arg" --with-vulkan \
         --prefix=/arlinux-wine --exec-prefix=/arlinux-wine
 ) > "$stage/configure.log" 2>&1

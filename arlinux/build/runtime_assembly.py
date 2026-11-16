@@ -23,18 +23,19 @@ def build_native(data, framework, artifacts, tools):
     paths = dict(ndk=Path(tools['ndk']), bionicPrefix=outputs['bionic-deps']/'prefix')
     invoke = lambda *args: run(*args, cwd=framework, env=os.environ.copy())
     output = cache.stage('wine-bionic', inputs, lambda out: package_bionic(out, framework,
-        outputs['wine-bionic-compile'], outputs['wine-tls'], outputs['wine-pulse'],
+        outputs['wine-bionic-compile'], outputs['wine-tls'], outputs['wine-media'], outputs['wine-pulse'],
         outputs['wine-graphics'], outputs['wine-vulkan'], paths, invoke))
     descriptor = framework/'build/artifacts/components/wine-bionic.json'
     descriptor.parent.mkdir(parents=True, exist_ok=True)
     descriptor.write_text(json.dumps(dict(output=str(output), records=cache.records), sort_keys=True)+'\n')
 
 
-def package_bionic(out, framework, compiled, tls, pulse, graphics, adapter, paths, invoke):
+def package_bionic(out, framework, compiled, tls, media, pulse, graphics, adapter, paths, invoke):
     out.mkdir()
     invoke('python3', 'arlinux/package-wine-bionic.py', '--core', compiled/'core',
            '--fex', compiled/'fex', '--native-prefix', paths['bionicPrefix'],
            '--dependency-prefix', tls/'prefix', '--dependency-prefix', pulse/'work/prefix',
+           '--dependency-prefix', media/'prefix',
            '--graphics-prefix', graphics/'prefix',
            '--ndk', paths['ndk']/'toolchains/llvm/prebuilt/linux-x86_64',
            '--output', out/'runtime',

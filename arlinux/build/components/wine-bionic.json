@@ -6,6 +6,7 @@
     "wine-bionic-compile",
     "bionic-deps",
     "wine-tls",
+    "wine-media",
     "wine-pulse",
     "wine-graphics",
     "wine-vulkan"
