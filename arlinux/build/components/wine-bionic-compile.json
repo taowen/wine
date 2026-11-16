@@ -2,7 +2,7 @@
   "repository": "taowen/wine",
   "runner": "ubuntu-24.04",
   "dependencies": [
-    "wine-pe-aarch64",
+    "wine-tools",
     "bionic-deps",
     "wine-tls",
     "wine-media",

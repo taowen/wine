@@ -17,6 +17,7 @@ import runtime_assembly as assembly
 def build_wine(cache, framework, android, paths, common, invoke, env):
     """Build the complete standalone Wine chain, including the Steamworks ABI inputs."""
     recipes = {
+        'wine-tools': ('arlinux/build/wine-tools.sh',),
         'wine-pulse': (),
         'wine-pe': ('arlinux/build/wine-pe.sh',),
         'fex': ('arlinux/build/fex-windows.sh', 'arlinux/components/FEX'),
@@ -40,9 +41,9 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
         inputs['toolchain'] = {n: common['toolchain'][n] for n in RESOURCES[name]}
         inputs['sources'] = {p: source_state(framework/p) if (framework/p).is_dir() else inventory(framework/p)
                              for p in recipes.get(name, recipes['wine-pe'])}
-        if name in ('wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386', 'wine-bionic-compile'):
+        if name in ('wine-tools', 'wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386', 'wine-bionic-compile'):
             inputs['wineSources'] = common['wineSources']
-        if name in ('wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386'):
+        if name in ('wine-tools', 'wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386'):
             inputs['hostFreeType'] = subprocess.check_output(['pkg-config', '--modversion', 'freetype2'], text=True).strip()
         if name == 'wine-pulse':
             inputs['pulseRecipe'] = common['pulseRecipe']
@@ -60,25 +61,29 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
             env.pop('ARLINUX_PULSE_OUTPUT', None)
     pulse = stage('wine-pulse', pulse)
 
+    tool_sdk = stage('wine-tools', lambda out: invoke('bash', 'arlinux/build/wine-tools.sh', paths['wineSource'], out))
+    tools = tool_sdk / 'tools' if tool_sdk else None
     pe_parts = {}
     for arch in ('aarch64', 'x86_64', 'i386'):
         def compile_pe(out, arch=arch):
             env['ARLINUX_WINE_PE_ARCH'] = arch
+            env['ARLINUX_WINE_TOOLS'] = str(tools)
+            env['ARLINUX_WINE_TOOLS_KEY'] = key(cache.records['wine-tools'])
             try:
                 invoke('bash', 'arlinux/build/wine-pe.sh', paths['wineSource'], paths['mingw'], out)
             finally:
                 env.pop('ARLINUX_WINE_PE_ARCH', None)
-        pe_parts[arch] = stage('wine-pe-' + arch, compile_pe)
+                env.pop('ARLINUX_WINE_TOOLS', None)
+                env.pop('ARLINUX_WINE_TOOLS_KEY', None)
+        pe_parts[arch] = stage('wine-pe-' + arch, compile_pe, ('wine-tools',))
     def merge_pe(out):
-        # Common headers, data and host tools come from the ARM64 build.
+        # Common headers and runtime data come from the ARM64 build.
         # Other jobs contribute only their architecture's Windows modules.
         shutil.copytree(pe_parts['aarch64'], out, symlinks=True)
         for arch in ('x86_64', 'i386'):
             relative = Path('files/lib/wine') / (arch + '-windows')
             shutil.copytree(pe_parts[arch] / relative, out / relative, symlinks=True)
     wine = stage('wine-pe', merge_pe, tuple('wine-pe-'+a for a in pe_parts))
-    arm = pe_parts['aarch64']
-    tools = Path(json.loads((arm / 'build-state.json').read_text())['tools']) if arm else None
     fex = stage('fex', lambda out: invoke('bash', 'arlinux/build/fex-windows.sh', paths['mingw'], out))
     dxvk = stage('dxvk', lambda out: invoke('bash', 'arlinux/build/dxvk-windows.sh', paths['mingw'], out, 'modern'))
     stage('vkd3d', lambda out: invoke('bash', 'arlinux/build/vkd3d-windows.sh', paths['mingw'], out))
@@ -104,7 +109,7 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
     compiled = stage('wine-bionic-compile', lambda out: invoke(
         'bash', 'arlinux/build/wine-bionic.sh', paths['wineSource'], tools,
         paths['mingw'], paths['ndk'], paths['bionicPrefix'], framework / 'arlinux/components/FEX', out),
-        ('wine-pe-aarch64', 'bionic-deps', 'wine-tls', 'wine-media', 'wine-pulse', 'wine-graphics'))
+        ('wine-tools', 'bionic-deps', 'wine-tls', 'wine-media', 'wine-pulse', 'wine-graphics'))
 
     native = stage('wine-bionic', lambda out: assembly.package_bionic(out, framework,
         compiled, tls, media, pulse, graphics, adapter, paths, invoke),

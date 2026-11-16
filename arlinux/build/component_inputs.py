@@ -11,6 +11,7 @@ SOURCES = {
     'bionic-deps': ('arlinux/components/bionic-deps/build-deps.sh', 'tools/build', 'toolchain.json'),
     'bionic-x11': ('arlinux/build/bionic-x11.sh', 'arlinux/components/libX11'),
     'wine-pulse': ('arlinux/components/pulseaudio-android', 'tools/build/ndk-env.sh', 'toolchain.json'),
+    'wine-tools': ('@wine', 'arlinux/build/wine-tools.sh'),
     **{'wine-pe-'+arch: ('@wine', *PE, 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py') for arch in ('aarch64', 'x86_64', 'i386')},
     'wine-pe': (),
     'fex': ('arlinux/build/fex-windows.sh', 'arlinux/components/FEX', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
@@ -38,6 +39,7 @@ SOURCES = {
     'windows-fonts': ('arlinux/wine_fonts.py', 'arlinux/build/runtime_distribution.py'),
 }
 RESOURCES = {name: ('mingw',) for name in SOURCES}
+RESOURCES['wine-tools'] = ()
 for name in ('bionic-deps', 'bionic-x11', 'wine-pulse', 'wine-tls', 'wine-media', 'wine-graphics', 'wine-vulkan'):
     RESOURCES[name] = ('ndk',)
 RESOURCES.update({'wine-addons': ('addons',), 'wine-bionic-compile': ('mingw', 'ndk'), 'wine-bionic': ('ndk',),

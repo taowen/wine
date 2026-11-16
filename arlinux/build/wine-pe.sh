@@ -8,6 +8,7 @@ fi
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source_dir="$(realpath "$1")"
 compiler="$(realpath "$2")"
+tools="$(realpath "${ARLINUX_WINE_TOOLS:?Use the declared wine-tools SDK}")"
 export PATH="$compiler:$PATH"
 architecture="${ARLINUX_WINE_PE_ARCH:-all}"
 case "$architecture" in
@@ -29,6 +30,7 @@ import hashlib,subprocess,sys,os
 repo,source,compiler=map(Path,sys.argv[1:])
 h=hashlib.sha256()
 h.update(os.environ["ARLINUX_WINE_PE_ARCH"].encode())
+h.update(os.environ['ARLINUX_WINE_TOOLS_KEY'].encode())
 sys.path.insert(0,str(repo/'arlinux/build'))
 from component_inputs import core_path,tree_entries
 import json
@@ -77,31 +79,19 @@ if [[ ! -f "$stage/source-ready" ]]; then
     mv -T "$prepare/source" "$stage/source"
     touch "$stage/source-ready"
 fi
-mkdir -p "$stage/tools" "$stage/core"
-native_triplet="$(gcc -dumpmachine)"
-export PKG_CONFIG_LIBDIR="/usr/lib/$native_triplet/pkgconfig:/usr/share/pkgconfig"
-pkg-config --exists freetype2 || {
-    echo 'Install native FreeType development headers for Wine font generation.' >&2; exit 2;
-}
-(cd "$stage/tools" && if [[ ! -f Makefile ]]; then CC='ccache gcc' CXX='ccache g++' "$stage/source/configure" --enable-win64 --disable-tests \
-    --without-mingw --without-x --without-wayland \
-    ; fi
-    make -j"${JOBS:-8}" tools/all tools/sfnt2fon/all \
-        tools/widl/all tools/winebuild/all tools/winegcc/all tools/wmc/all tools/wrc/all nls/all) \
-    > "$stage/tools.log" 2>&1
+mkdir -p "$stage/core"
 export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
 (cd "$stage/core" && if [[ ! -f Makefile ]]; then "$stage/source/configure" --host="$pe_host-w64-mingw32" $pe_win64 \
-    --enable-archs="$pe_archs" --with-wine-tools="$stage/tools" \
+    --enable-archs="$pe_archs" --with-wine-tools="$tools" \
     --disable-tests --disable-winex11.drv --enable-winewayland.drv --without-wayland --without-unwind --without-x --without-freetype --without-fontconfig --without-gnutls --without-opengl; fi) > "$stage/configure.log" 2>&1
 make -C "$stage/core" -j"${JOBS:-8}" > "$stage/build.log" 2>&1
 make -C "$stage/core" install DESTDIR="$stage/install" > "$stage/install.log" 2>&1
 # PE-only configure omits native loader data and font installation rules.
 # Generate these with matching native tools, preserving the same source version.
 if [[ "$architecture" == all || "$architecture" == aarch64 ]]; then
-make -C "$stage/tools" -j"${JOBS:-8}" loader/wine.inf fonts/all > "$stage/data.log" 2>&1
 mkdir -p "$stage/install/usr/local/share/wine/fonts"
-install -m644 "$stage/tools/loader/wine.inf" "$stage/install/usr/local/share/wine/wine.inf"
-find "$stage/tools/fonts" -maxdepth 1 -type f \( -name '*.fon' -o -name '*.ttf' \) \
+install -m644 "$tools/loader/wine.inf" "$stage/install/usr/local/share/wine/wine.inf"
+find "$tools/fonts" -maxdepth 1 -type f \( -name '*.fon' -o -name '*.ttf' \) \
     -exec install -m644 -t "$stage/install/usr/local/share/wine/fonts" {} +
 find "$stage/source/fonts" -maxdepth 1 -type f -name '*.ttf' \
     -exec install -m644 -t "$stage/install/usr/local/share/wine/fonts" {} +
@@ -117,32 +107,13 @@ git -C "$source_dir" rev-parse HEAD > "$stage/output/wine-commit"
 cp "$stage/source/VERSION" "$stage/output/wine-version"
 tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu \
     -czf "$stage/output/wine-source.tar.gz" -C "$stage" source
-python3 - "$stage" <<'BUILD_STATE'
-import json, shutil, sys
-from pathlib import Path
-stage = Path(sys.argv[1])
-# Configure logs contain runner hostnames and timestamps, not tool inputs.
-# Keep diagnostics in the private builder and export the usable tools separately.
-exported = stage/'host-tools'
-# This is a regenerated export, not a merge target. copytree with
-# dirs_exist_ok replaces regular files but fails on existing symlinks after
-# restoring a compiler cache. Keep compiled tools intact and replace only
-# this owned export directory.
-if exported.is_symlink():
-    exported.unlink()
-elif exported.exists():
-    shutil.rmtree(exported)
-shutil.copytree(stage/'tools', exported, symlinks=True,
-                ignore=shutil.ignore_patterns('*.log'))
-(stage/'output/build-state.json').write_text(json.dumps({'tools': str(exported)}) + '\n')
-BUILD_STATE
 else
-    # The merge consumes only these modules. Common data, source archives and
-    # host-tool references come from the ARM64 part, never these two jobs.
+    # The merge consumes only these modules. Common data and source archives
+    # come from the ARM64 part; compiler tools are an independent SDK.
     mkdir -p "$stage/output/files/lib/wine"
     cp -a "$stage/install/usr/local/lib/wine/$architecture-windows" "$stage/output/files/lib/wine/"
 fi
 mkdir -p "$(dirname "$destination")"
 mv -T --no-clobber "$stage/output" "$destination"
 [[ ! -d "$stage/output" ]] || { echo 'Destination appeared during build; preserving outputs.' >&2; exit 2; }
-echo "Built Wine 11.19 Windows modules in $destination"
+echo "Built Wine Windows modules in $destination"

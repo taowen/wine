@@ -185,6 +185,13 @@ single Wine prefix. Conflicting file ownership and unsafe archives still fail.
 
 ## Cache and provenance
 
+`wine-tools` is a build-only SDK shared by the native Bionic compiler and all
+three PE compiler jobs. It contains the matching host code generators, source
+tree, generated headers, NLS data and generated fonts. Native compilation does
+not depend on building or downloading the ARM64 PE runtime. PE capsules no longer
+export a second host-tool tree. The SDK has its own repository-owned compiler
+cache and verified output receipt; it is never an installed runtime component.
+
 Maintained Wine fixes live directly in this fork's source tree, including the
 US keyboard layout, DirectWrite rendering fixes, Android audio/locale/storage
 adaptations, ARM64 APC handling and Vulkan/window/memory fixes. Native and PE

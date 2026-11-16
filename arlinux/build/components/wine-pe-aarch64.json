@@ -1,7 +1,7 @@
 {
   "repository": "taowen/wine",
   "runner": "ubuntu-24.04",
-  "dependencies": [],
+  "dependencies": ["wine-tools"],
   "product": "wine",
   "compilerCacheMiB": 1536,
   "release": "arlinux-wine-pe-aarch64-debug",
