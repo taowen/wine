@@ -77,13 +77,11 @@ def main():
     report = report.resolve()
     runtime, prefix = windows.ensure_runtime(), windows.instance_prefix()
     windows.initialize(runtime, prefix)
-    import windows_webview
-    env = windows_webview.prepare(runtime, prefix, windows.environment(runtime, prefix))
-    env['ARLINUX_VULKAN_CAPTURE'] = json.dumps(dict(
+    # Capture a generic executable without installing or changing unrelated
+    # WebView2 dependencies. The application's installer owns those policies.
+    capture = json.dumps(dict(
         tools=str(windows.host_path(tools)), output=str(windows.host_path(report)),
         memoryTracking=args.memory_tracking, frames=args.frames))
-    overrides = {name: env[name] for name in ('ARLINUX_VULKAN_CAPTURE',
-        'WEBVIEW2_BROWSER_EXECUTABLE_FOLDER', 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS') if name in env}
     metadata = dict(started=time.time(), runtime_sha256=runtime.name,
         executable=str(executable), executable_sha256=digest(executable),
         arguments=args.arguments, seconds=args.seconds, max_mib=args.max_mib,
@@ -91,7 +89,7 @@ def main():
         layer_processes={}, stop_reason=None)
     (report/'runtime.json').write_text((runtime/'bionic-runtime.json').read_text())
     response = windows.request(runtime, prefix, executable, args.arguments,
-                               diagnostics=overrides, task=True)
+                               diagnostics={'ARLINUX_VULKAN_CAPTURE': capture}, task=True)
     metadata['job'] = response['job']
     deadline = time.monotonic()+args.seconds
     print('Capturing one owned Windows job; output can contain private data.', flush=True)
