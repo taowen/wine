@@ -186,9 +186,16 @@ def publish_distribution(data, record, final, repository=None, index_name=LEAF_I
             if not replace:
                 raise ValueError('Immutable product asset conflicts: '+name)
         if name not in existing or replace:
-            with tempfile.TemporaryDirectory(prefix='product-asset-') as directory:
-                staged = Path(directory)/name
-                shutil.copyfile(path, staged)
+            with tempfile.TemporaryDirectory(prefix='product-asset-', dir=path.parent) as directory:
+                staged = path
+                if path.name != name:
+                    staged = Path(directory)/name
+                    # Renamed source assets share their existing bytes. Keep
+                    # the temporary link on the same filesystem as the input.
+                    try:
+                        os.link(path, staged)
+                    except OSError:
+                        shutil.copyfile(path, staged)
                 try:
                     run('gh', 'release', 'upload', release, '--repo', repository, staged,
                         *(['--clobber'] if replace else []))
@@ -205,9 +212,7 @@ def publish_distribution(data, record, final, repository=None, index_name=LEAF_I
         return checksum, size
     component_files = {item['file'] for item in index.get('components', [])}
     record['artifacts'], record['parts'] = [], []
-    for path in sorted(final.iterdir()):
-        if not path.is_file():
-            continue
+    def publish_file(path):
         role = 'runtime' if path.name in component_files else 'manifest' if path.name == index_name else 'source'
         if role == 'source':
             name = 'source-'+sha(path)+'.tar.gz'
@@ -216,8 +221,13 @@ def publish_distribution(data, record, final, repository=None, index_name=LEAF_I
         else:
             name = path.name
         checksum, size = upload(path, name, tag, assets, replace=role == 'manifest')
-        record['artifacts'].append(dict(name=path.name, sha256=checksum, bytes=size, role=role,
-            url=f'https://github.com/{repository}/releases/download/{tag}/{name}'))
+        return dict(name=path.name, sha256=checksum, bytes=size, role=role,
+            url=f'https://github.com/{repository}/releases/download/{tag}/{name}')
+    from concurrent.futures import ThreadPoolExecutor
+    payloads = [path for path in sorted(final.iterdir()) if path.is_file() and path.name != index_name]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        record['artifacts'] = list(pool.map(publish_file, payloads))
+    record['artifacts'].append(publish_file(final/index_name))
     if data['stage'] in RUNTIME_STAGES:
         item = next(item for item in record['artifacts'] if item['role'] == 'manifest')
         record['runtimeManifest'] = dict(name=data['stage'], file=item['name'],
