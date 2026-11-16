@@ -255,6 +255,16 @@ USER_DRIVER_FUNCS = {
     "vkUnmapMemory2KHR",
 }
 
+# Preserve the direct-host dispatch already used by ARLinux's generated thunks.
+# Keep the user-driver ABI entries, but do not regenerate these calls through
+# the image-shadow/coherent-memory wrappers.
+DIRECT_HOST_THUNKS = {
+    "vkDeviceWaitIdle", "vkQueueWaitIdle", "vkWaitForFences", "vkGetFenceStatus",
+    "vkWaitSemaphores", "vkWaitSemaphoresKHR", "vkGetSemaphoreCounterValue",
+    "vkGetSemaphoreCounterValueKHR", "vkDestroyImage", "vkGetImageMemoryRequirements",
+    "vkGetImageMemoryRequirements2", "vkGetImageMemoryRequirements2KHR",
+}
+
 # functions for which the unix thunk is manually implemented
 MANUAL_UNIX_THUNKS = {
     "vkAllocateCommandBuffers",
@@ -654,7 +664,7 @@ class Function(Type):
         if func_info:
             self.require()
 
-        if self.name in MANUAL_UNIX_THUNKS | USER_DRIVER_FUNCS:
+        if self.name in MANUAL_UNIX_THUNKS | (USER_DRIVER_FUNCS - DIRECT_HOST_THUNKS):
             self.unwrap = Unwrap.NONE
         else:
             self.unwrap = Unwrap.HOST
@@ -825,7 +835,7 @@ class Function(Type):
 
         if self.name in MANUAL_UNIX_THUNKS:
             func_prefix = "wine_"
-        elif self.name in USER_DRIVER_FUNCS:
+        elif self.name in USER_DRIVER_FUNCS - DIRECT_HOST_THUNKS:
             func_prefix = "vk_funcs->p_"
         else:
             func_prefix = "{0}->p_".format(self.params[0].dispatch_table(params_prefix, conv))
@@ -1449,8 +1459,9 @@ class VkMember(VkVariable):
             return False
 
         if direction == Direction.INPUT:
-            # returnedonly members don't needs input conversions
-            if not self.is_pointer() and self.returnedonly:
+            # Output values need no input copy, but an embedded extensible
+            # structure still needs its sType and pNext chain initialized.
+            if not self.is_pointer() and self.returnedonly and not (self.is_struct() and self.struct.chain_next):
                 return False
             # pointer arrays always need input conversion
             if conv and self.is_dynamic_array() and self.pointer_array:
@@ -1923,7 +1934,7 @@ class Record(Type):
             # for non-pointer members, check for returnedonly and const attributes
             if not m.is_pointer() or m.type_name == "void":
                 if direction == Direction.INPUT:
-                    if m.returnedonly:
+                    if m.returnedonly and not (m.is_struct() and m.struct.chain_next):
                         continue
                 else:
                     if is_const or m.is_const():
@@ -2442,8 +2453,10 @@ class Generator(object):
         f.write("    }\n")
         f.write("}\n\n")
 
+        f.write("static void convert_VkPhysicalDeviceProperties2_win32_to_host(struct conversion_context *ctx, const VkPhysicalDeviceProperties232 *in, VkPhysicalDeviceProperties2 *out);\n")
         f.write("static void convert_VkPhysicalDeviceProperties2_host_to_win32(const VkPhysicalDeviceProperties2 *in, VkPhysicalDeviceProperties232 *out);\n")
         f.write("#ifdef _WIN64\n")
+        f.write("static void convert_VkPhysicalDeviceProperties2_win64_to_host(struct conversion_context *ctx, const VkPhysicalDeviceProperties2 *in, VkPhysicalDeviceProperties2 *out);\n")
         f.write("static void convert_VkPhysicalDeviceProperties2_host_to_win64(const VkPhysicalDeviceProperties2 *in, VkPhysicalDeviceProperties2 *out);\n")
         f.write("#endif\n")
 
@@ -3002,28 +3015,28 @@ def main():
 
     generator = Generator(vk_xml, video_xml)
 
-    with open(WINE_VULKAN_H, "w") as f:
+    with open(WINE_VULKAN_H, "w", newline="\n") as f:
         generator.generate_vulkan_h(f)
 
-    with open(WINE_VULKAN_THUNKS_H, "w") as f:
+    with open(WINE_VULKAN_THUNKS_H, "w", newline="\n") as f:
         generator.generate_thunks_h(f)
 
-    with open(WINE_VULKAN_THUNKS_C, "w") as f:
+    with open(WINE_VULKAN_THUNKS_C, "w", newline="\n") as f:
         generator.generate_thunks_c(f)
 
-    with open(WINE_VULKAN_LOADER_THUNKS_H, "w") as f:
+    with open(WINE_VULKAN_LOADER_THUNKS_H, "w", newline="\n") as f:
         generator.generate_loader_thunks_h(f)
 
-    with open(WINE_VULKAN_LOADER_THUNKS_C, "w") as f:
+    with open(WINE_VULKAN_LOADER_THUNKS_C, "w", newline="\n") as f:
         generator.generate_loader_thunks_c(f)
 
-    with open(WINE_VULKAN_JSON, "w") as f:
+    with open(WINE_VULKAN_JSON, "w", newline="\n") as f:
         generate_vulkan_json(f)
 
-    with open(WINE_VULKAN_SPEC, "w") as f:
+    with open(WINE_VULKAN_SPEC, "w", newline="\n") as f:
         generator.generate_vulkan_spec(f)
 
-    with open(WINE_VULKAN_LOADER_SPEC, "w") as f:
+    with open(WINE_VULKAN_LOADER_SPEC, "w", newline="\n") as f:
         generator.generate_vulkan_loader_spec(f)
 
 if __name__ == "__main__":
