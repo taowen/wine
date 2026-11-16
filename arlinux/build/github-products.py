@@ -40,6 +40,34 @@ def api(path, optional=False):
     return json.loads(value) if value else None
 
 
+def workflow_run(repository, run_id):
+    value = api(f'repos/{repository}/actions/runs/{int(run_id)}', optional=True)
+    if value is None:
+        return None
+    return dict(databaseId=value['id'], displayTitle=value['display_title'],
+                status=value['status'], conclusion=value['conclusion'], url=value['html_url'])
+
+
+def dispatch_workflow(repository, workflow, request):
+    # GitHub returns the exact run ID. A queued run may still have the generic
+    # workflow title, so searching by its eventual display name can miss it.
+    branch = api('repos/'+repository)['default_branch']
+    payload = dict(ref=branch, inputs=dict(request=json.dumps(request, sort_keys=True)))
+    response = subprocess.run(['gh', 'api', '--method', 'POST',
+        f'repos/{repository}/actions/workflows/{workflow}/dispatches',
+        '-H', 'X-GitHub-Api-Version: 2026-03-10', '--input', '-'],
+        input=json.dumps(payload), capture_output=True, text=True)
+    # Never blindly retry a dispatch whose response was lost: it might already
+    # have created a run. Read-only status requests retain their normal retries.
+    if response.returncode:
+        raise RuntimeError(response.stderr.strip())
+    result = json.loads(response.stdout)
+    run_id = result['workflow_run_id']
+    if not isinstance(run_id, int) or run_id <= 0:
+        raise ValueError('GitHub did not return a workflow run ID')
+    return run_id
+
+
 def dispatch_release(repository, request, workflow, poll=15):
     """Run only the owning repository's publication job, not its compiler graph."""
     title = 'arlinux/'+request['stage']+'/'+request['identity']
@@ -48,15 +76,14 @@ def dispatch_release(repository, request, workflow, poll=15):
                              '--limit', '100', '--json', 'databaseId,displayTitle,status,conclusion,url'))
     previous = runs()
     active = next((r for r in previous if r['displayTitle'] == title and r['status'] != 'completed'), None)
-    ignored = {r['databaseId'] for r in previous if r['status'] == 'completed'}
     if not active:
-        gh('workflow', 'run', workflow, '--repo', repository,
-           '-f', 'request='+json.dumps(request, sort_keys=True))
+        run_id = dispatch_workflow(repository, workflow, request)
         print('START publication '+repository+'/'+request['stage'], flush=True)
+    else:
+        run_id = active['databaseId']
     deadline, last = time.monotonic()+50*60, None
     while time.monotonic() < deadline:
-        matches = [r for r in runs() if r['displayTitle'] == title and r['databaseId'] not in ignored]
-        run = matches[0] if matches else None
+        run = workflow_run(repository, run_id)
         if run:
             state = run['status']+'/'+str(run['conclusion'])
             if state != last:
@@ -196,13 +223,18 @@ class Coordinator:
             if result is None:
                 raise RuntimeError('Local assembly did not publish its completion record')
             return result
-        payload=json.dumps(request,sort_keys=True)
         # A standalone workflow_dispatch creates a run in the component repo.
         # Do not replace this with workflow_call: caches must belong to that repo.
         title='arlinux/'+stage+'/'+request['identity']
-        previous_runs=self.runs(repository)
-        run=next((r for r in previous_runs if r['displayTitle']==title and r['status']!='completed'),None)
-        ignored={r['databaseId'] for r in previous_runs if r['status']=='completed'}
+        run_file=self.state/request['identity']/'run.json'
+        run=None
+        if run_file.is_file():
+            saved=json.loads(run_file.read_text())
+            if saved.get('repository')==repository and saved.get('workflow')==self.plan['workflow']:
+                run=workflow_run(repository,saved['id'])
+                if run and run['status']=='completed':run=None
+        if not run:
+            run=next((r for r in self.runs(repository) if r['displayTitle']==title and r['status']!='completed'),None)
         if not run:
             # Capsules contain verified build receipts, including references.
             # They can seed a new run after an unrelated framework commit; the
@@ -231,20 +263,21 @@ class Coordinator:
                                 manifestUrl=asset['browser_download_url'], manifestSha256=digest[7:],
                                 # Pin bytes: the fixed release can change while queued.
                                 manifestText=file.read_bytes().decode('utf-8'))
-            payload=json.dumps(request,sort_keys=True)
-            gh('workflow','run',self.plan['workflow'],'--repo',repository,'-f','request='+payload)
+            run_id=dispatch_workflow(repository,self.plan['workflow'],request)
             print('START '+repository+'/'+stage,flush=True)
         else:
+            run_id=run['databaseId']
             print('RESUME '+repository+'/'+stage+' '+run['url'],flush=True)
+        run_file.parent.mkdir(parents=True,exist_ok=True)
+        pending=run_file.with_suffix('.tmp')
+        pending.write_text(json.dumps(dict(repository=repository,workflow=self.plan['workflow'],id=run_id))+'\n')
+        pending.replace(run_file)
         deadline=time.monotonic()+7*60*60
         previous=None
         while time.monotonic()<deadline:
             if self.stopped.is_set():
                 raise RuntimeError('Local coordinator stopped; remote workflows remain available to resume')
-            runs=self.runs(repository)
-            matches=[r for r in runs if r['displayTitle']==title and r['databaseId'] not in ignored]
-            run=next((r for r in matches if r['conclusion']=='success'),
-                     next((r for r in matches if r['status']!='completed'), matches[0] if matches else None))
+            run=workflow_run(repository,run_id)
             if run:
                 status=run['status']+'/'+str(run['conclusion'])
                 if status!=previous:
