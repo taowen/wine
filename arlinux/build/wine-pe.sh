@@ -81,9 +81,13 @@ if [[ ! -f "$stage/source-ready" ]]; then
 fi
 mkdir -p "$stage/core"
 export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+# The Windows media DLL and its COM registration do not require a host GStreamer
+# SDK. Its Unix backend is compiled separately against the Bionic media SDK.
 (cd "$stage/core" && if [[ ! -f Makefile ]]; then "$stage/source/configure" --host="$pe_host-w64-mingw32" $pe_win64 \
     --enable-archs="$pe_archs" --with-wine-tools="$tools" \
-    --disable-tests --disable-winex11.drv --enable-winewayland.drv --without-wayland --without-unwind --without-x --without-freetype --without-fontconfig --without-gnutls --without-opengl; fi) > "$stage/configure.log" 2>&1
+    --disable-tests --disable-winex11.drv --enable-winewayland.drv --without-wayland \
+    --enable-winegstreamer --without-gstreamer \
+    --without-unwind --without-x --without-freetype --without-fontconfig --without-gnutls --without-opengl; fi) > "$stage/configure.log" 2>&1
 make -C "$stage/core" -j"${JOBS:-8}" > "$stage/build.log" 2>&1
 make -C "$stage/core" install DESTDIR="$stage/install" > "$stage/install.log" 2>&1
 # PE-only configure omits native loader data and font installation rules.
