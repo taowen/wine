@@ -380,3 +380,9 @@ ordered loader stack and actual messages; `VALIDATION_FINISHED` reports completi
 of diagnostics, not successful rendering. Repeat the user flow without validation
 before measuring performance. Remove the temporary report and extracted tools
 after inspection; immutable tool archives use the instance-external download cache.
+
+Capture normally records application calls before compatibility translation.
+Use `--driver-calls` with a host supporting that option to record the translated
+calls instead, including shader modules created internally by the compatibility
+layer. Confirm the ordered loader stack in the job log. Driver-call traces must
+be replayed without applying the same compatibility translation a second time.

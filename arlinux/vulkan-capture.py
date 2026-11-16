@@ -35,6 +35,8 @@ def main():
     parser.add_argument('--frames', default='')
     parser.add_argument('--convert', action='store_true')
     parser.add_argument('--validation', action='store_true', help='Use the Wayland-enabled Bionic validation product')
+    parser.add_argument('--driver-calls', action='store_true',
+                        help='Capture calls after compatibility translation instead of application calls')
     parser.add_argument('executable', type=Path)
     parser.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -42,6 +44,8 @@ def main():
         parser.error('Use 1..120 seconds and 1..512 MiB')
     if args.validation and (args.frames or args.convert):
         parser.error('Frame ranges and conversion apply only to capture')
+    if args.validation and args.driver_calls:
+        parser.error('Validation already observes translated driver calls')
     sys.path.insert(0, '/usr/lib/arlinux')
     import windows
     if args.archive:
@@ -84,11 +88,12 @@ def main():
     # WebView2 dependencies. The application's installer owns those policies.
     settings = json.dumps(dict(
         tools=str(windows.host_path(tools)), output=str(windows.host_path(report)),
-        memoryTracking=args.memory_tracking, frames=args.frames))
+        memoryTracking=args.memory_tracking, frames=args.frames, driverCalls=args.driver_calls))
     metadata = dict(started=time.time(), runtime_sha256=runtime.name,
         executable=str(executable), executable_sha256=digest(executable),
         arguments=args.arguments, seconds=args.seconds, max_mib=args.max_mib,
-        memory_tracking=args.memory_tracking, frames=args.frames, validation=args.validation, provenance=provenance,
+        memory_tracking=args.memory_tracking, frames=args.frames, validation=args.validation,
+        driver_calls=args.driver_calls, provenance=provenance,
         layer_processes={}, stop_reason=None)
     (report/'runtime.json').write_text((runtime/'bionic-runtime.json').read_text())
     setting = 'ARLINUX_VULKAN_VALIDATION' if args.validation else 'ARLINUX_VULKAN_CAPTURE'
