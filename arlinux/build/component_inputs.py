@@ -36,6 +36,7 @@ SOURCES = {
     'wine-diagnostics': ('arlinux/build/windows-debug.sh', 'arlinux/windows-debug.py',
                          'arlinux/components/windows-integration'),
     'wine-capture': ('arlinux/components/gfxreconstruct', 'arlinux/vulkan-capture.py'),
+    'wine-validation': ('arlinux/components/vulkan-validation-layers', 'arlinux/vulkan-capture.py'),
     'windows-fonts': ('arlinux/wine_fonts.py', 'arlinux/build/runtime_distribution.py'),
 }
 RESOURCES = {name: ('mingw',) for name in SOURCES}
@@ -43,7 +44,7 @@ RESOURCES['wine-tools'] = ()
 for name in ('bionic-deps', 'bionic-x11', 'wine-pulse', 'wine-tls', 'wine-media', 'wine-graphics', 'wine-vulkan'):
     RESOURCES[name] = ('ndk',)
 RESOURCES.update({'wine-addons': ('addons',), 'wine-bionic-compile': ('mingw', 'ndk'), 'wine-bionic': ('ndk',),
-                  'wine-capture': ('ndk',), 'wine-installer': ('ndk', 'mingw', 'vulkanHeaders'), 'windows-fonts': (), 'wine-vulkan': ('ndk', 'vulkanHeaders')})
+                  'wine-capture': ('ndk',), 'wine-validation': ('ndk',), 'wine-installer': ('ndk', 'mingw', 'vulkanHeaders'), 'windows-fonts': (), 'wine-vulkan': ('ndk', 'vulkanHeaders')})
 SHARED = ('arlinux/build/github-component.py',
           'arlinux/build/wine-pipeline.py', 'arlinux/build/pipeline_cache.py',
           'arlinux/build/wine_graph.py', 'arlinux/build.sh')
@@ -144,7 +145,9 @@ def source_inputs(repo, revision, stage, plan):
     selected['declaredPaths'] = tuple(path for path in paths if path not in publication)
     adapter = 'arlinux/build/github-component.py'
     handlers = ('build_'+stage.replace('-', '_'),) if stage in (
-        'windows-fonts', 'wine-capture', 'wine-diagnostics') else ()
+        'windows-fonts', 'wine-capture', 'wine-validation', 'wine-diagnostics') else ()
+    if stage in ('wine-capture', 'wine-validation'):
+        handlers += ('build_vulkan_tools',)
     selected[adapter] = implementation(source(adapter),
         ('run', 'sha', 'request', 'prepare', 'toolchains', 'import_dependency', 'restore_seed', 'build', *handlers))
     selected['arlinux/build/artifact_download.py'] = implementation(

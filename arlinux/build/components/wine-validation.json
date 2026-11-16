@@ -1,0 +1,9 @@
+{
+  "repository": "taowen/Vulkan-ValidationLayers",
+  "runner": "ubuntu-24.04",
+  "dependencies": [],
+  "product": "wine-validation",
+  "compilerCacheMiB": 2048,
+  "release": "arlinux-wine-validation-debug",
+  "products": ["wine-validation"]
+}

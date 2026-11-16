@@ -111,7 +111,7 @@ def prepare(data, framework):
             'libxcb-xfixes0-dev', 'libxcb-randr0-dev', 'libxdamage-dev', 'libxext-dev',
             'libelf-dev', 'libudev-dev', 'libgbm-dev', 'gperf', 'libglib2.0-dev', 'libglib2.0-dev-bin',
             'ccache', 'gettext', 'libgettextpo-dev', 'libssl-dev', 'unzip', 'autopoint', 'intltool', 'python-is-python3']
-        if data['stage'] in ('wine-capture', 'wine-diagnostics', 'windows-accessibility', 'windows-tray',
+        if data['stage'] in ('wine-capture', 'wine-validation', 'wine-diagnostics', 'windows-accessibility', 'windows-tray',
                              'wine-pe', 'wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386'):
             packages = ['build-essential', 'bison', 'flex', 'ccache', 'gettext', 'libfreetype-dev',
                         'cmake', 'ninja-build', 'pkg-config', 'git', 'curl', 'unzip',
@@ -165,6 +165,8 @@ def prepare(data, framework):
             paths.append(str(framework/'build/pipeline'/data['stage']))
         if data['stage'] == 'wine-capture':
             paths.append(str(framework/'build/gfxreconstruct-bionic'))
+        if data['stage'] == 'wine-validation':
+            paths.append(str(framework/'build/vulkan-validation-bionic'))
         # PE output, source and tool trees already travel in verified component
         # capsules. Retain only ccache here, not a second multi-GB output copy.
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as out:
@@ -322,36 +324,46 @@ def build_windows_fonts(data, framework):
 
 
 def build_wine_capture(data, framework):
+    build_vulkan_tools(data, framework)
+
+
+def build_wine_validation(data, framework):
+    build_vulkan_tools(data, framework)
+
+
+def build_vulkan_tools(data, framework):
     root = Path(os.environ['ARLINUX_WORKSPACE'])
     stage = data['stage']
     tools = toolchains(root, framework)
     from pipeline_cache import Cache, inventory
     cache = Cache(framework/'build/pipeline')
-    dependency = import_dependency(root, data['dependencies'][0], set(), recursive=False)
-    prefix = root/dependency['pipelineOutput']/'prefix'
-    source = framework/'arlinux/components/gfxreconstruct'
-    inputs = dict(source=data['sourceInputs']['recipeSha256'], dependency=dependency['outputIdentity'],
+    capture = stage == 'wine-capture'
+    dependency = import_dependency(root, data['dependencies'][0], set(), recursive=False) if capture else None
+    source = framework/'arlinux/components'/('gfxreconstruct' if capture else 'vulkan-validation-layers')
+    inputs = dict(source=data['sourceInputs']['recipeSha256'], dependency=dependency['outputIdentity'] if dependency else None,
                   toolchain=sha(framework/'arlinux/build/github-inputs.json'))
     def compile_capture(output):
         import gzip
         # CMake's generated include paths participate in compiler-cache keys.
         # Keep one owned working directory across source updates; retire the
         # old commit-named trees after restoring a legacy Actions cache.
-        build_dir = framework/'build/gfxreconstruct-bionic'
+        build_dir = framework/'build'/('gfxreconstruct-bionic' if capture else 'vulkan-validation-bionic')
         build_dir.mkdir(parents=True,exist_ok=True)
         for child in build_dir.iterdir():
             if child.is_dir() and re.fullmatch('[0-9a-f]{40}',child.name):
                 shutil.rmtree(child)
         staged = output/'tools'
-        run('bash', source/'arlinux/build-bionic.sh', tools['ndk'], prefix, build_dir, staged,
-            env=dict(os.environ, JOBS='4', CCACHE_DIR=str(root/'cache/ccache')))
-        archive = output/'arlinux-wine-capture.tar.gz'
+        arguments = [root/dependency['pipelineOutput']/'prefix'] if dependency else []
+        run('bash', source/'arlinux/build-bionic.sh', tools['ndk'], *arguments, build_dir, staged,
+            env=dict(os.environ, JOBS='4' if capture else '2', CCACHE_DIR=str(root/'cache/ccache')))
+        archive = output/f'arlinux-{stage}.tar.gz'
         # Helper or publication changes must not make identical native tools a
         # new 50+ MiB download just because gzip/tar recorded this run's time.
         with archive.open('wb') as raw, gzip.GzipFile(filename='',fileobj=raw,mode='wb',compresslevel=3,mtime=0) as compressed:
             with tarfile.open(fileobj=compressed,mode='w|') as target:
                 for path in [staged,*sorted(staged.rglob('*'))]:
-                    name='capture-tools' if path==staged else 'capture-tools/'+path.relative_to(staged).as_posix()
+                    prefix = 'capture-tools' if capture else 'validation-tools'
+                    name=prefix if path==staged else prefix+'/'+path.relative_to(staged).as_posix()
                     entry=target.gettarinfo(str(path),arcname=name)
                     entry.uid=entry.gid=entry.mtime=0
                     entry.uname=entry.gname=''
@@ -396,7 +408,7 @@ def build(data, framework):
     os.environ.pop('TAR_OPTIONS', None)
     root = Path(os.environ['ARLINUX_WORKSPACE'])
     stage = data['stage']
-    if stage in ('windows-fonts', 'wine-capture', 'wine-diagnostics'):
+    if stage in ('windows-fonts', 'wine-capture', 'wine-validation', 'wine-diagnostics'):
         globals()['build_'+stage.replace('-', '_')](data, framework)
         return
     visited = set()
@@ -464,9 +476,9 @@ def publish(data, framework):
         record['pipelineOutput'] = path.relative_to(root).as_posix()
         if stage == 'wine-vulkan':
             diagnostic_assets = diagnostic_artifacts(framework, record, path)
-        if stage in ('wine-diagnostics', 'wine-capture'):
+        if stage in ('wine-diagnostics', 'wine-capture', 'wine-validation'):
             # Consumers need distributable archives, not the native compiler work tree.
-            final = framework/('build/artifacts/'+('diagnostics' if stage == 'wine-diagnostics' else 'wine-capture' if stage == 'wine-capture' else 'wine'))
+            final = framework/'build/artifacts'/('diagnostics' if stage == 'wine-diagnostics' else stage)
             final.mkdir(parents=True, exist_ok=True)
             for source in path.iterdir():
                 if source.is_file():

@@ -416,7 +416,7 @@ def fetch_product(reference, output):
         archive=download_capsule(record, directory)
         audio=record['stage']=='wine-pulse'
         product=('audio' if audio else 'diagnostics' if record['stage']=='wine-diagnostics'
-                 else 'wine-capture' if record['stage']=='wine-capture' else None)
+                 else record['stage'] if record['stage'] in ('wine-capture','wine-validation') else None)
         if product is None:
             raise ValueError('Compiler capsules are not deployable runtime producers')
         prefix='framework/build/artifacts/'+product+'/'
@@ -455,7 +455,7 @@ def fetch_product(reference, output):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--framework-ref',default='arlinux')
-    parser.add_argument('--product',choices=('wine','audio','diagnostics','hybris-diagnostics','wine-capture','all'),default='all')
+    parser.add_argument('--product',choices=('wine','audio','diagnostics','hybris-diagnostics','wine-capture','wine-validation','all'),default='all')
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--parallel',type=int,default=8)
     parser.add_argument('--component', choices=None, help='Build only this runtime producer and its compiler dependencies')

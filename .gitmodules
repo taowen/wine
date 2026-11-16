@@ -43,3 +43,6 @@
 [submodule "arlinux/components/vkd3d-proton"]
 	path = arlinux/components/vkd3d-proton
 	url = https://github.com/taowen/vkd3d-proton.git
+[submodule "arlinux/components/vulkan-validation-layers"]
+	path = arlinux/components/vulkan-validation-layers
+	url = https://github.com/taowen/Vulkan-ValidationLayers.git
