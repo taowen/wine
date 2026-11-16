@@ -41,6 +41,8 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
                              for p in recipes.get(name, recipes['wine-pe'])}
         if name in ('wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386', 'wine-bionic-compile'):
             inputs['wineSources'] = common['wineSources']
+        if name in ('wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386'):
+            inputs['hostFreeType'] = subprocess.check_output(['pkg-config', '--modversion', 'freetype2'], text=True).strip()
         if name == 'wine-pulse':
             inputs['pulseRecipe'] = common['pulseRecipe']
         inputs['dependencies'] = {n: cache.records[n] for n in dependencies}
@@ -165,7 +167,6 @@ def main():
                       wineSources={n: v for n, v in sources.items() if core_path(n)}, toolchain=toolchain)
         common['hostTools'] = {name: subprocess.check_output([name, '--version'], text=True)
                                for name in ('gcc', 'g++', 'make', 'cmake', 'ninja', 'meson', 'pkg-config')}
-        common['hostFreeType'] = subprocess.check_output(['pkg-config', '--modversion', 'freetype2'], text=True).strip()
         common['pulseRecipe'] = {str(p.relative_to(android)): inventory(p) for p in (
             android / 'arlinux/components/pulseaudio-android/arlinux/build.sh', android / 'tools/build/ndk-env.sh',
             android / 'toolchain.json', android / 'arlinux/components/pulseaudio-android')} if cache.selected('wine-pulse') else {}
