@@ -3,7 +3,6 @@
 from component_recipes import load_plan
 import argparse
 import hashlib
-import gzip
 import json
 import os
 from pathlib import Path
@@ -334,6 +333,7 @@ def build_wine_capture(data, framework):
     inputs = dict(source=data['sourceInputs']['recipeSha256'], dependency=dependency['outputIdentity'],
                   toolchain=sha(framework/'arlinux/build/github-inputs.json'))
     def compile_capture(output):
+        import gzip
         # CMake's generated include paths participate in compiler-cache keys.
         # Keep one owned working directory across source updates; retire the
         # old commit-named trees after restoring a legacy Actions cache.
