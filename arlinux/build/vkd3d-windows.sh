@@ -37,8 +37,8 @@ for arch in aarch64 x86_64 i386; do
     fi
     cat > "$cache/$arch.ini" <<EOF
 [binaries]
-c = ['ccache', '$compiler/$target-w64-mingw32-clang']
-cpp = ['ccache', '$compiler/$target-w64-mingw32-clang++']
+c = '$compiler/$target-w64-mingw32-clang'
+cpp = '$compiler/$target-w64-mingw32-clang++'
 ar = '$compiler/llvm-ar'
 strip = '$compiler/llvm-strip'
 windres = '$compiler/$target-w64-mingw32-windres'
