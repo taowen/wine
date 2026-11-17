@@ -138,6 +138,7 @@ class Coordinator:
         state.mkdir(parents=True,exist_ok=True)
         self.stopped = Event()
         self.timings = {}
+        self.transfers = {}
         self.local_manifests = set()
 
     def runs(self, repository):
@@ -155,8 +156,23 @@ class Coordinator:
                 if record.get(name) != request.get(name):
                     return False
             return True
-        # Resolve the owning release every time. Its completion marker can move
-        # to another request while verified, pinned generations remain usable.
+        # A fixed request can reuse its previously verified, immutable manifest.
+        # Never trust the moving completion marker as a local cache identity.
+        try:
+            reference = json.loads(reference_file.read_text())
+            checksum = reference['manifestSha256']
+            pinned_url = f'https://github.com/{repository}/releases/download/{tag}/component-{checksum}.json'
+            if (re.fullmatch('[0-9a-f]{64}', checksum) and
+                    reference['repository'] == repository and
+                    reference['identity'] == request['identity'] and
+                    reference['manifestUrl'] == pinned_url and
+                    sha256_file(manifest) == checksum and
+                    validate(json.loads(manifest.read_text()))):
+                print('OK verified component metadata '+repository+'/'+request['stage'], flush=True)
+                return reference
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        # Missing or invalid local metadata is resolved through the producer.
         release = api(f'repos/{repository}/releases/tags/{tag}',optional=True)
         if not release:
             return None
@@ -368,7 +384,9 @@ class Coordinator:
                     try:
                         completed[stage]=future.result()
                         if output is not None and stage in targets:
+                            transfer_started = time.monotonic()
                             fetch_product(completed[stage], output/targets[stage])
+                            self.transfers[targets[stage]] = dict(seconds=round(time.monotonic()-transfer_started, 3))
                             print('READY '+stage+' '+str(output/targets[stage]), flush=True)
                     except BaseException:
                         self.stopped.set()
@@ -487,17 +505,12 @@ def main():
     started=time.monotonic()
     result=coordinator.run(products,args.parallel,args.output)
     graph_seconds=time.monotonic()-started
-    transfers={}
-    for name,reference in result.items():
-        transfer_started=time.monotonic()
-        fetch_product(reference,args.output/name)
-        transfers[name]=dict(seconds=round(time.monotonic()-transfer_started,3))
     (args.output/('products-'+args.product+'.json')).write_text(json.dumps(dict(format=1,
         framework=framework_sha,products=result),indent=2)+'\n')
     (args.output/('build-timing-'+args.product+'.json')).write_text(json.dumps(dict(format=1,
         framework=framework_sha, totalSeconds=round(time.monotonic()-started,3),
         graphSeconds=round(graph_seconds,3), components=coordinator.timings,
-        productTransfers=transfers),indent=2)+'\n')
+        productTransfers=coordinator.transfers),indent=2)+'\n')
 
 
 if __name__=='__main__':

@@ -48,6 +48,13 @@ compiler dependencies and fixed release, such as `arlinux-wine-capture-debug`.
 The coordinator reads these independent recipes; there is no central component
 manifest. It queries that exact release directly, never scans SHA-tagged releases.
 Input and output hashes remain cache keys and integrity/provenance records.
+The coordinator reuses a cached component reference only when its immutable
+manifest hash, declared inputs and dependency references still match. Missing or
+invalid metadata falls back to the producer's release; runtime artifacts retain
+their own SHA-256 checks. Product delivery runs once per requested producer.
+The host-tools SDK tracks generator sources, headers, fonts/NLS data, configure
+declarations and the server protocol. DLL/program implementations remain inputs
+to the PE and Bionic compilers without invalidating unchanged host generators.
 Payloads upload before the component completion marker. Compiler publication
 does not replace the tested public `runtime.tar.gz`; explicit promotion does.
 

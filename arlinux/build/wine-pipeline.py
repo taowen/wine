@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from wine_graph import ComponentCache, ComponentComplete, required_stages, PLAN
 from pipeline_cache import Cache, digest, inventory, key, run, source_state
-from component_inputs import core_path, RESOURCES, source_inputs
+from component_inputs import core_path, tools_path, RESOURCES, source_inputs
 import runtime_assembly as assembly
 
 def build_wine(cache, framework, android, paths, common, invoke, env):
@@ -42,7 +42,8 @@ def build_wine(cache, framework, android, paths, common, invoke, env):
         inputs['sources'] = {p: source_state(framework/p) if (framework/p).is_dir() else inventory(framework/p)
                              for p in recipes.get(name, recipes['wine-pe'])}
         if name in ('wine-tools', 'wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386', 'wine-bionic-compile'):
-            inputs['wineSources'] = common['wineSources']
+            inputs['wineSources'] = ({n: v for n, v in common['wineSources'].items() if tools_path(n)}
+                                     if name == 'wine-tools' else common['wineSources'])
         if name in ('wine-tools', 'wine-pe-aarch64', 'wine-pe-x86_64', 'wine-pe-i386'):
             inputs['hostFreeType'] = subprocess.check_output(['pkg-config', '--modversion', 'freetype2'], text=True).strip()
         if name == 'wine-pulse':

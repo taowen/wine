@@ -11,7 +11,7 @@ SOURCES = {
     'bionic-deps': ('arlinux/components/bionic-deps/build-deps.sh', 'tools/build', 'toolchain.json'),
     'bionic-x11': ('arlinux/build/bionic-x11.sh', 'arlinux/components/libX11'),
     'wine-pulse': ('arlinux/components/pulseaudio-android', 'tools/build/ndk-env.sh', 'toolchain.json'),
-    'wine-tools': ('@wine', 'arlinux/build/wine-tools.sh'),
+    'wine-tools': ('@wine-tools', 'arlinux/build/wine-tools.sh'),
     **{'wine-pe-'+arch: ('@wine', *PE, 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py') for arch in ('aarch64', 'x86_64', 'i386')},
     'wine-pe': (),
     'fex': ('arlinux/build/fex-windows.sh', 'arlinux/components/FEX', 'arlinux/build/runtime_distribution.py', 'arlinux/wine_pe_debug.py'),
@@ -80,6 +80,17 @@ def core_path(name):
                 name in ('.gitmodules', 'toolchain.json'))
 
 
+def tools_path(name):
+    """Native generators, their headers/data, and configure's build declarations.
+
+    DLL/program implementations are compiled by the PE and Bionic producers,
+    not the host SDK. Keep their Makefiles since configure/makedep reads them.
+    The server protocol is also consumed by tools/make_requests.
+    """
+    return core_path(name) and (not name.startswith(('dlls/', 'programs/', 'server/')) or
+                               name.endswith('/Makefile.in') or name == 'server/protocol.def')
+
+
 def tree_entries(repo, revision, paths=()):
     args = ['git', '-C', str(repo), 'ls-tree', '-r', '-z', revision]
     if paths:
@@ -124,7 +135,7 @@ def tree_entries(repo, revision, paths=()):
 
 def source_inputs(repo, revision, stage, plan):
     paths = SOURCES[stage]
-    selected = tree_entries(repo, revision, (*SHARED, *(p for p in paths if p != '@wine')))
+    selected = tree_entries(repo, revision, (*SHARED, *(p for p in paths if not p.startswith('@'))))
     def source(path):
         return subprocess.check_output(['git', '-C', str(repo), 'show', revision+':'+path]).decode()
     # The resolved declarations, tools and recipe code below are the inputs.
@@ -155,8 +166,9 @@ def source_inputs(repo, revision, stage, plan):
     if stage in ASSEMBLY_CODE:
         path = 'arlinux/build/runtime_assembly.py'
         selected[path] = implementation(source(path), ASSEMBLY_CODE[stage])
-    if '@wine' in paths:
-        selected.update({n: v for n, v in tree_entries(repo, revision).items() if core_path(n)})
+    wine_paths = core_path if '@wine' in paths else tools_path if '@wine-tools' in paths else None
+    if wine_paths:
+        selected.update({n: v for n, v in tree_entries(repo, revision).items() if wine_paths(n)})
     lock = subprocess.check_output(['git', '-C', str(repo), 'show', revision+':arlinux/build/github-inputs.json'])
     versions = json.loads(lock)
     recipe = dict(selected)
