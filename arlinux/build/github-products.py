@@ -150,36 +150,46 @@ class Coordinator:
         directory = self.state/request['identity']
         manifest = directory/'component.json'
         reference_file = directory/'reference.json'
-        url = f'https://github.com/{repository}/releases/download/{tag}/component.json'
         def validate(record):
             for name in ('stage','identity','android','dependencies', 'sourceInputs'):
                 if record.get(name) != request.get(name):
                     return False
             return True
-        # Always resolve the fixed release; local metadata alone cannot prove
-        # that its mutable endpoint still selects the same component.
+        # Resolve the owning release every time. Its completion marker can move
+        # to another request while verified, pinned generations remain usable.
         release = api(f'repos/{repository}/releases/tags/{tag}',optional=True)
         if not release:
             return None
-        asset = next((a for a in release['assets'] if a['name']=='component.json'),None)
-        if not asset:
-            return None
-        digest = asset.get('digest','')
-        if not digest.startswith('sha256:'):
-            raise ValueError('GitHub did not supply the component manifest SHA-256')
-        download(asset['browser_download_url'],manifest,digest[7:])
-        record = json.loads(manifest.read_text())
-        if not validate(record):
-            return None
-        names={a['name'] for a in release['assets']}
-        if any(part['name'] not in names for part in record['parts']):
+        assets = {asset['name']: asset for asset in release['assets']}
+        candidates = [assets['component.json']] if 'component.json' in assets else []
+        candidates.extend(sorted((asset for name, asset in assets.items()
+            if re.fullmatch(r'component-[0-9a-f]{64}\.json', name)),
+            key=lambda asset: asset['created_at'], reverse=True))
+        tried = set()
+        for asset in candidates:
+            digest = asset.get('digest','')
+            if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+                raise ValueError('GitHub did not supply the component manifest SHA-256')
+            if digest in tried:
+                continue
+            tried.add(digest)
+            download(asset['browser_download_url'],manifest,digest[7:])
+            record = json.loads(manifest.read_text())
+            if not validate(record):
+                continue
+            if all(part['name'] in assets and
+                   assets[part['name']].get('digest') == 'sha256:'+part['sha256']
+                   for part in record['parts']):
+                break
+        else:
             return None
         reference = dict(repository=repository,identity=request['identity'],
             manifestUrl=asset['browser_download_url'],manifestSha256=digest[7:])
-        if reference['manifestUrl'] != url:
-            raise ValueError('Unexpected immutable component manifest URL')
+        expected_url = f"https://github.com/{repository}/releases/download/{tag}/{asset['name']}"
+        if reference['manifestUrl'] != expected_url:
+            raise ValueError('Unexpected component manifest URL')
         pinned_name = 'component-'+digest[7:]+'.json'
-        pinned = next((a for a in release['assets'] if a['name'] == pinned_name), None)
+        pinned = assets.get(pinned_name)
         if pinned:
             if pinned.get('digest') != digest:
                 raise ValueError('Pinned component manifest differs from its completion marker')

@@ -239,9 +239,12 @@ dependencies; the independent FEX DLL producer initializes that compiler tree.
 Large compiler jobs reclaim optional preinstalled runner SDKs only while free
 space is below 20 GiB, rather than deleting every SDK on each warm build.
 Each completed publication also retains its SHA-256-named component record.
-Coordinators discover the current producer through `component.json`, then pass
-the immutable record URL to dependent jobs so another build cannot replace their
-selected metadata while they are queued.
+  Coordinators check `component.json` first, then the retained SHA-256-named
+  records in the same fixed release. Reuse requires matching declared inputs
+  and dependencies, a verified manifest and matching published payload digests;
+  another request replacing the completion marker does not force recompilation.
+  Dependent jobs receive the immutable record URL so queued builds keep their
+  selected metadata.
 
 Actions cache extraction preserves original file permissions, which are part of
 output receipts. Restored compiler outputs and references are verified before
