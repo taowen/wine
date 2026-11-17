@@ -317,5 +317,5 @@ def assemble(root, output, component_base=None, group_prefix='', index_name=LEAF
 
 
 def runtime_url(url, filename):
-    return bool(re.fullmatch(r'https://github\.com/taowen/(?:wine|FEX|dxvk|arlinux-steamworks|arlinux-windows-integration)'
-                            r'/releases/download/[^/]+/'+re.escape(filename), url))
+    match = re.fullmatch(r'https://github\.com/([^/]+/[^/]+)/releases/download/[^/]+/'+re.escape(filename), url)
+    return bool(match and match[1] in {spec['repository'] for spec in load_plan()['stages'].values()})
