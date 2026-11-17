@@ -152,6 +152,8 @@ class Coordinator:
         manifest = directory/'component.json'
         reference_file = directory/'reference.json'
         def validate(record):
+            if not isinstance(record, dict):
+                return False
             for name in ('stage','identity','android','dependencies', 'sourceInputs'):
                 if record.get(name) != request.get(name):
                     return False
