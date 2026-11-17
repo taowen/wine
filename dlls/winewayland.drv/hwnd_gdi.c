@@ -665,8 +665,9 @@ void wayland_hwnd_gdi_update(struct wayland_surface *surface)
     BOOL any_new = FALSE;
 
     if (!process_wayland.wl_shm) return;
-    /* dmabuf children are composited for primary surfaces. */
-    if (!wayland_surface_is_toplevel(surface))
+    /* An owned tool window is a primary HWND surface too. Its children keep
+     * producing frames when its Wayland role is a subsurface, not a toplevel. */
+    if (!wayland_surface_is_toplevel(surface) && surface->role != WAYLAND_SURFACE_ROLE_SUBSURFACE)
         return;
 
     /* Import is driven by producer wakes (WM_WAYLAND_DMABUF_FRAME) at the producer's
