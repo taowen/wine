@@ -401,6 +401,8 @@ def fetch_product(reference, output):
         raise ValueError('Invalid product component identity')
     directory = output.parent/'github-state/downloads'/identity
     with request_lock(directory/'transfer.lock', Event()):
+        if reuse_product(output, reference):
+            return
         cache_receipt=output/'download-receipt.json'
         import zstandard
         manifest=directory/'component.json'
@@ -408,8 +410,6 @@ def fetch_product(reference, output):
         record=json.loads(manifest.read_text())
         if record['identity']!=reference['identity']:
             raise ValueError('Product identity mismatch')
-        if reuse_product(output, reference):
-            return
         if record.get('artifacts') or record.get('diagnostics'):
             # Device testing needs only the runtime. Source archives are fetched
             # by the publisher on demand, using the same verified component record.
