@@ -455,9 +455,15 @@ static BOOL is_window_managed(HWND hwnd, UINT swp_flags, BOOL fullscreen)
     style = NtUserGetWindowLongW(hwnd, GWL_STYLE);
     if ((style & (WS_CHILD|WS_POPUP)) == WS_CHILD) return FALSE;
     ex_style = NtUserGetWindowLongW(hwnd, GWL_EXSTYLE);
+    /* Owned palettes retain application-selected positions relative to their
+     * document. xdg_toplevel parenting cannot express those positions, so use
+     * the existing subsurface path, including Win32 client-side decorations. */
+    if ((ex_style & WS_EX_TOOLWINDOW) && !(ex_style & WS_EX_APPWINDOW) &&
+        NtUserGetWindowRelative(hwnd, GW_OWNER))
+        return FALSE;
     /* An owned, frameless, non-activating surface decorates another
      * window; it must not acquire an independently focusable xdg_toplevel.
-     * Keep genuine application windows and framed palettes managed. Do not
+     * Keep genuine application windows managed. Do not
      * depend on the layered style: applications can toggle it while painting. */
     if ((ex_style & WS_EX_NOACTIVATE) &&
         !(ex_style & WS_EX_APPWINDOW) && !(style & (WS_CAPTION | WS_THICKFRAME)) &&
