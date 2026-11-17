@@ -1790,7 +1790,9 @@ static WCHAR *format_user_registry_path( const struct sid *sid, struct unicode_s
 #ifdef __aarch64__
 static bool supports_aarch32(void)
 {
-#if defined(HAVE_SYS_PERSONALITY_H)
+    /* The Bionic runtime has no ARM32 Wine loader or PE runtime. The Android
+     * kernel accepting PER_LINUX32 only establishes hardware compatibility. */
+#if defined(HAVE_SYS_PERSONALITY_H) && !defined(__BIONIC__)
     int old = personality( PER_LINUX32 );
     if (old == -1) return false;
     personality( old );
