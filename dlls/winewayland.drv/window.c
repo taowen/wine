@@ -1142,10 +1142,10 @@ LRESULT WAYLAND_SysCommand(HWND hwnd, WPARAM wparam, LPARAM lparam, const POINT 
                     xdg_toplevel_resize(surface->xdg_toplevel, wl_seat, button_serial,
                                         hittest_to_resize_edge(wparam & 0x0f));
                 }
+                ret = 0;
             }
             pthread_mutex_unlock(&process_wayland.seat.mutex);
             wayland_win_data_release(data);
-            ret = 0;
         }
     }
 
