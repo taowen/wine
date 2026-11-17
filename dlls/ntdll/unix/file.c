@@ -1018,11 +1018,21 @@ static BOOLEAN get_dir_case_sensitivity_stat( int root_fd, const char *dir )
     {
         sens = FALSE;
     }
-    else if (fstatfs( fd, &stfs ) == 0 &&                          /* CIOPFS is case insensitive.  Instead of */
-             stfs.f_type == 0x65735546 /* FUSE_SUPER_MAGIC */ &&   /* parsing mtab to discover if the FUSE FS */
-             fstatat( fd, ".ciopfs", &st, AT_NO_AUTOMOUNT ) == 0)  /* is CIOPFS, look for .ciopfs in the dir. */
+    else if (fstatfs( fd, &stfs ) == 0 && stfs.f_type == 0x65735546 /* FUSE_SUPER_MAGIC */)
     {
-        sens = FALSE;
+#ifdef __ANDROID__
+        struct stat storage;
+
+        /* Android's emulated storage performs case-insensitive lookups, but
+         * MediaProvider FUSE does not implement EXT2_IOC_GETFLAGS. Match the
+         * actual filesystem device, including paths reached through Wine drive
+         * symlinks; other FUSE mounts and app-private storage remain unchanged. */
+        if (!fstat( fd, &st ) && !stat( "/storage/emulated", &storage ) && st.st_dev == storage.st_dev)
+            sens = FALSE;
+        else
+#endif
+        /* CIOPFS is case insensitive. Look for its marker rather than parsing mtab. */
+        if (fstatat( fd, ".ciopfs", &st, AT_NO_AUTOMOUNT ) == 0) sens = FALSE;
     }
 
     close( fd );
