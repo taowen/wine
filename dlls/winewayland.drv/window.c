@@ -619,7 +619,7 @@ void WAYLAND_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     HWND owner = NtUserGetAncestor(hwnd, GA_ROOT);
     struct wayland_surface *owner_surface;
     struct wayland_win_data *data, *owner_data;
-    BOOL managed, fullscreen = swp_flags & WINE_SWP_FULLSCREEN;
+    BOOL managed, expose = FALSE, fullscreen = swp_flags & WINE_SWP_FULLSCREEN;
     struct wayland_window_config previous;
 
     TRACE("hwnd %p new_rects %s after %p flags %08x\n", hwnd, debugstr_window_rects(new_rects), insert_after, swp_flags);
@@ -656,12 +656,18 @@ void WAYLAND_WindowPosChanged(HWND hwnd, HWND insert_after, HWND owner_hint, UIN
             xdg_toplevel_set_parent(data->wayland_surface->xdg_toplevel,
                 owner_surface && wayland_surface_is_toplevel(owner_surface) ? owner_surface->xdg_toplevel : NULL);
         wayland_win_data_update_wayland_state(data, &previous);
+        /* Assigning a subsurface role detaches buffers committed while hidden.
+         * Unlike xdg_toplevel it receives no initial configure to flush the
+         * cached contents again. Expose them once after the role is ready. */
+        expose = data->wayland_surface->role == WAYLAND_SURFACE_ROLE_SUBSURFACE &&
+                 !data->wayland_surface->content_width && data->window_contents;
         if (!wl_list_empty(&data->wayland_surface->hwnd_dmabuf_surfaces))
             wayland_hwnd_gdi_update(data->wayland_surface);
     }
 
     if (owner_data) wayland_win_data_release(owner_data);
     wayland_win_data_release(data);
+    if (expose) NtUserExposeWindowSurface(hwnd, 0, NULL);
     /* An ancestor can move or hide without repainting a foreign GDI leaf.
      * Notify the owning root even when this process owns no producer surface. */
     owner = NtUserGetAncestor(hwnd, GA_ROOT);
