@@ -39,6 +39,7 @@
 WINE_DEFAULT_DEBUG_CHANNEL(heap);
 WINE_DECLARE_DEBUG_CHANNEL(virtual);
 WINE_DECLARE_DEBUG_CHANNEL(globalmem);
+WINE_DECLARE_DEBUG_CHANNEL(vmprotect);
 
 static const struct _KUSER_SHARED_DATA *user_shared_data = (struct _KUSER_SHARED_DATA *)0x7ffe0000;
 
@@ -553,7 +554,22 @@ BOOL WINAPI DECLSPEC_HOTPATCH  VirtualLock( void *addr, SIZE_T size )
  */
 BOOL WINAPI DECLSPEC_HOTPATCH VirtualProtect( void *addr, SIZE_T size, DWORD new_prot, DWORD *old_prot )
 {
-    return VirtualProtectEx( GetCurrentProcess(), addr, size, new_prot, old_prot );
+    BOOL ret = VirtualProtectEx( GetCurrentProcess(), addr, size, new_prot, old_prot );
+
+    if (ret && old_prot && new_prot == PAGE_READONLY && *old_prot == PAGE_WRITECOPY)
+    {
+        const RTL_USER_PROCESS_PARAMETERS *params = NtCurrentTeb()->Peb->ProcessParameters;
+        const WCHAR *image = params ? params->ImagePathName.Buffer : NULL;
+        const WCHAR *name = image ? wcsrchr( image, '\\' ) : NULL;
+
+        /* Battle.net's CEF expects its already written image data to be private. */
+        if (image && !wcsicmp( name ? name + 1 : image, L"Battle.net.exe" ))
+        {
+            TRACE_(vmprotect)( "reporting private protection for Battle.net at %p\n", addr );
+            *old_prot = PAGE_READWRITE;
+        }
+    }
+    return ret;
 }
 
 
