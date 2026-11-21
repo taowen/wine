@@ -78,7 +78,10 @@ def main():
         shutil.copyfile(explorer, target)
     configuration = destination / 'etc/dxvk.conf'
     configuration.parent.mkdir(parents=True, exist_ok=True)
+    # Wine's DirectComposition driver can present the DXVK composition back buffer.
     configuration.write_text('[msedgewebview2.exe]\n'
+                             'dxgi.enableDummyCompositionSwapchain = True\n'
+                             '[Battle.net.exe]\n'
                              'dxgi.enableDummyCompositionSwapchain = True\n')
     unix = destination / 'lib/wine/aarch64-unix'
     unix.mkdir(parents=True)
