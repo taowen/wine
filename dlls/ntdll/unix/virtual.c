@@ -94,6 +94,7 @@
 WINE_DEFAULT_DEBUG_CHANNEL(virtual);
 WINE_DECLARE_DEBUG_CHANNEL(module);
 WINE_DECLARE_DEBUG_CHANNEL(mem_areas);
+WINE_DECLARE_DEBUG_CHANNEL(vmprotect);
 
 struct preload_info
 {
@@ -5217,7 +5218,7 @@ NTSTATUS WINAPI NtProtectVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T 
     BYTE vprot;
     SIZE_T size = *size_ptr;
     LPVOID addr = *addr_ptr;
-    DWORD old;
+    DWORD old = PAGE_NOACCESS;
 
     TRACE("%p %p %08lx %08x\n", process, addr, size, new_prot );
 
@@ -5267,6 +5268,9 @@ NTSTATUS WINAPI NtProtectVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T 
     }
     else status = STATUS_INVALID_PARAMETER;
 
+    if (new_prot == PAGE_READONLY)
+        TRACE_(vmprotect)( "%p %08lx old %#x status %#x\n",
+                          addr, (unsigned long)*size_ptr, (unsigned int)old, status );
     if (!status) VIRTUAL_DEBUG_DUMP_VIEW( view );
 
     server_leave_uninterrupted_section( &virtual_mutex, &sigset );
