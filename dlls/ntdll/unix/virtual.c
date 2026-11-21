@@ -94,7 +94,6 @@
 WINE_DEFAULT_DEBUG_CHANNEL(virtual);
 WINE_DECLARE_DEBUG_CHANNEL(module);
 WINE_DECLARE_DEBUG_CHANNEL(mem_areas);
-WINE_DECLARE_DEBUG_CHANNEL(writecopy);
 
 struct preload_info
 {
@@ -130,7 +129,6 @@ struct file_view
 #define VPROT_GUARD      0x10
 #define VPROT_COMMITTED  0x20
 #define VPROT_WRITEWATCH 0x40
-#define VPROT_COPIED     0x80
 /* per-mapping protection flags */
 #define VPROT_ARM64EC          0x0100  /* view may contain ARM64EC code */
 #define VPROT_SYSTEM           0x0200  /* system view (underlying mmap not under our control) */
@@ -1537,11 +1535,7 @@ static NTSTATUS create_view( struct file_view **view_ret, void *base, size_t siz
  */
 static DWORD get_win32_prot( BYTE vprot, unsigned int map_prot )
 {
-    DWORD ret;
-
-    if ((vprot & (VPROT_COPIED | VPROT_WRITECOPY)) == (VPROT_COPIED | VPROT_WRITECOPY))
-        vprot = (vprot & ~VPROT_WRITECOPY) | VPROT_WRITE;
-    ret = VIRTUAL_Win32Flags[vprot & 0x0f];
+    DWORD ret = VIRTUAL_Win32Flags[vprot & 0x0f];
     if (vprot & VPROT_GUARD) ret |= PAGE_GUARD;
     if (map_prot & SEC_NOCACHE) ret |= PAGE_NOCACHE;
     return ret;
@@ -5209,16 +5203,6 @@ NTSTATUS WINAPI NtFreeVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T *si
 }
 
 
-static BOOL simulate_writecopy(void)
-{
-    const WCHAR *name, *p;
-
-    if (!main_wargv || !(name = main_wargv[0])) return FALSE;
-    for (p = name; *p; ++p)
-        if (*p == '\\' || *p == '/') name = p + 1;
-    return !wcsicmp( name, L"Battle.net.exe" );
-}
-
 /***********************************************************************
  *             NtProtectVirtualMemory   (NTDLL.@)
  *             ZwProtectVirtualMemory   (NTDLL.@)
@@ -5278,15 +5262,6 @@ NTSTATUS WINAPI NtProtectVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T 
         {
             old = get_win32_prot( vprot, view->protect );
             status = set_protection( view, base, size, new_prot );
-            /* Battle.net's CEF expects the private protection of a copied page. */
-            if (!status && (old == PAGE_WRITECOPY || old == PAGE_EXECUTE_WRITECOPY) &&
-                simulate_writecopy())
-            {
-                set_page_vprot_bits( base, size, VPROT_COPIED, 0 );
-                old = get_win32_prot( vprot | VPROT_COPIED, view->protect );
-                TRACE_(writecopy)( "reporting private protection %#x for %p-%p\n",
-                                   (unsigned int)old, base, base + size );
-            }
         }
         else status = STATUS_NOT_COMMITTED;
     }
